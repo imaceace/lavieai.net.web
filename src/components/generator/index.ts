@@ -1,11 +1,17 @@
 export { PromptInput } from "./PromptInput";
 export { StyleSelector } from "./StyleSelector";
+export { SimpleStyleSelector } from "./SimpleStyleSelector";
 export { UseCaseSelector } from "./UseCaseSelector";
 export { ResolutionSelector } from "./ResolutionSelector";
 export { AspectRatioSelector } from "./AspectRatioSelector";
+export { SimpleAspectRatioSelector } from "./SimpleAspectRatioSelector";
 export { ColorSelector } from "./ColorSelector";
+export { SimpleColorSelector } from "./SimpleColorSelector";
 export { LightingSelector } from "./LightingSelector";
+export { SimpleLightingSelector } from "./SimpleLightingSelector";
 export { CompositionSelector } from "./CompositionSelector";
+export { SimpleCompositionSelector } from "./SimpleCompositionSelector";
+export { DropdownSelector } from "./DropdownSelector";
 export { GenerateButton } from "./GenerateButton";
 export { ExampleGallery } from "./ExampleGallery";
 export { TryStyleCards } from "./TryStyleCards";
