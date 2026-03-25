@@ -1,0 +1,52 @@
+{
+  "nav": {
+    "gallery": "Gallery",
+    "pricing": "Pricing",
+    "profile": "Profile",
+    "login": "Login",
+    "signOut": "Sign out",
+    "upgradePlan": "Upgrade Plan"
+  },
+  "gallery": {
+    "badge": "Inspiration Gallery",
+    "title": "Explore the World of AI Art",
+    "description": "Every artwork is a meeting of imagination and algorithms. Discover infinite inspiration here.",
+    "searchPlaceholder": "Search by keywords or style...",
+    "selectStyle": "Select Style",
+    "allStyles": "✨ All Styles",
+    "loading": "Loading artworks...",
+    "noResults": "No matching artworks found",
+    "noResultsHint": "Try a different keyword",
+    "viewDetails": "View Details",
+    "generateSimilar": "Generate Similar",
+    "generate": "Generate",
+    "loadMore": "Loading more...",
+    "endOfList": "— End of Gallery —",
+    "artworkDetails": "Artwork Details",
+    "prompt": "Prompt",
+    "copyPrompt": "Copy Prompt",
+    "style": "Style",
+    "creator": "Creator",
+    "download": "Download",
+    "share": "Share",
+    "backToGallery": "Back to Gallery",
+    "workNotFound": "Work Not Found",
+    "workNotFoundDesc": "The artwork you're looking for doesn't exist.",
+    "negativePrompt": "Negative Prompt",
+    "details": "Details",
+    "useCase": "Use Case",
+    "created": "Created",
+    "size": "Size",
+    "createSimilar": "Create Similar",
+    "loadingWork": "Loading artwork..."
+  },
+  "common": {
+    "credits": "credits",
+    "daily": "Daily",
+    "claim": "Claim",
+    "pts": "pts"
+  },
+  "footer": {
+    "tagline": "Free AI Image Generator"
+  }
+}

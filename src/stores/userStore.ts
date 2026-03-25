@@ -5,8 +5,10 @@ interface User {
   email: string;
   name: string;
   avatar: string;
-  subscription: "free" | "basic" | "pro" | "ultra";
-  points: number;
+  subscription_type: "free" | "basic" | "pro" | "ultra";
+  subscription_expire?: number;
+  created_at?: number;
+  credits: number;
 }
 
 interface UserStore {
@@ -14,8 +16,7 @@ interface UserStore {
   isLoggedIn: boolean;
   isLoading: boolean;
   setUser: (user: User | null) => void;
-  setPoints: (points: number) => void;
-  login: (user: User) => void;
+  setCredits: (credits: number) => void;
   logout: () => void;
 }
 
@@ -29,10 +30,9 @@ export const useUserStore = create<UserStore>((set) => ({
       isLoggedIn: !!user,
       isLoading: false,
     }),
-  setPoints: (points) =>
+  setCredits: (credits) =>
     set((state) => ({
-      user: state.user ? { ...state.user, points } : null,
+      user: state.user ? { ...state.user, credits } : null,
     })),
-  login: (user) => set({ user, isLoggedIn: true, isLoading: false }),
   logout: () => set({ user: null, isLoggedIn: false, isLoading: false }),
 }));

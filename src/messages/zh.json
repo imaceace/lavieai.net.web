@@ -1,0 +1,52 @@
+{
+  "nav": {
+    "gallery": "画廊",
+    "pricing": "价格",
+    "profile": "个人中心",
+    "login": "登录",
+    "signOut": "退出登录",
+    "upgradePlan": "升级方案"
+  },
+  "gallery": {
+    "badge": "灵感画廊",
+    "title": "探索 AI 艺术世界",
+    "description": "每一幅作品都是想象力与算法的邂逅，在这里遇见无限灵感",
+    "searchPlaceholder": "搜索关键词或风格...",
+    "selectStyle": "选择风格",
+    "allStyles": "✨ 全部风格",
+    "loading": "正在加载作品...",
+    "noResults": "暂无匹配的作品",
+    "noResultsHint": "换个关键词试试吧",
+    "viewDetails": "查看详情",
+    "generateSimilar": "生成类似作品",
+    "generate": "生成",
+    "loadMore": "加载更多...",
+    "endOfList": "— 已展示全部作品 —",
+    "artworkDetails": "作品详情",
+    "prompt": "创作描述",
+    "copyPrompt": "复制提示词",
+    "style": "风格",
+    "creator": "创作者",
+    "download": "下载图片",
+    "share": "分享",
+    "backToGallery": "返回画廊",
+    "workNotFound": "作品未找到",
+    "workNotFoundDesc": "您查找的作品不存在。",
+    "negativePrompt": "反向提示词",
+    "details": "详细信息",
+    "useCase": "使用场景",
+    "created": "创建时间",
+    "size": "尺寸",
+    "createSimilar": "创作类似作品",
+    "loadingWork": "正在加载作品..."
+  },
+  "common": {
+    "credits": "积分",
+    "daily": "每日",
+    "claim": "领取",
+    "pts": "积分"
+  },
+  "footer": {
+    "tagline": "免费 AI 图片生成器"
+  }
+}

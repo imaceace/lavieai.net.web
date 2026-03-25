@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 const API_URL = process.env.API_URL || "http://localhost:8787";
+
+const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["localhost", "192.168.50.70"],
@@ -8,10 +11,10 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: `${API_URL}/:path*`,
+        destination: `${API_URL}/api/:path*`,
       },
     ];
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

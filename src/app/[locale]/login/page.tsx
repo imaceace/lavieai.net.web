@@ -1,26 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.lavieai.net';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const oauthError = searchParams.get("oauth_error");
+    if (oauthError) {
+      setError(decodeURIComponent(oauthError));
+    }
+  }, [searchParams]);
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     setError("");
 
-    try {
-      // Redirect to backend Google OAuth
-      window.location.href = "https://api.lavieai.net/auth/google";
-    } catch (err) {
-      setError("Failed to initiate login. Please try again.");
-      setIsLoading(false);
-    }
+    const returnTo = window.location.href.split("?")[0].replace("/login", "") || "http://localhost:3000";
+    const loginUrl = `${API_BASE}/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`;
+
+    window.location.href = loginUrl;
   };
 
   return (

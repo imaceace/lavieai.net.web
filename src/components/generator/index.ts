@@ -12,6 +12,8 @@ export { SimpleLightingSelector } from "./SimpleLightingSelector";
 export { CompositionSelector } from "./CompositionSelector";
 export { SimpleCompositionSelector } from "./SimpleCompositionSelector";
 export { DropdownSelector } from "./DropdownSelector";
+export { RatioSelector } from "./RatioSelector";
+export { VisualSelector } from "./VisualSelector";
 export { GenerateButton } from "./GenerateButton";
 export { ExampleGallery } from "./ExampleGallery";
 export { TryStyleCards } from "./TryStyleCards";

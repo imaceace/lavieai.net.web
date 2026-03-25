@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -12,15 +13,98 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Rainbow gradient text animation */
+@keyframes rainbow-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  background: linear-gradient(
+    90deg,
+    #f59e0b,
+    #10b981,
+    #3b82f6,
+    #8b5cf6,
+    #ec4899,
+    #f59e0b
+  );
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-position: 0% 50%;
+  animation: rainbow-gradient 4s ease infinite;
+}
+
+/* Theme colors */
+:root {
+  /* Light theme (default) */
+  --gen-bg: #ffffff;
+  --gen-border: #e5e7eb;
+  --gen-text: #1f2937;
+  --gen-text-muted: #6b7280;
+  --gen-input-bg: #f9fafb;
+  --gen-input-border: #e5e7eb;
+  --gen-button-bg: #f3f4f6;
+  --gen-button-hover: #e5e7eb;
+  --gen-accent: #f59e0b;
+  --gen-accent-bg: #fef3c7;
+}
+
+.dark {
+  /* Dark theme */
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --gen-bg: #0f0f0f;
+  --gen-border: #262626;
+  --gen-text: #e8e4df;
+  --gen-text-muted: #9a948a;
+  --gen-input-bg: #1a1a1a;
+  --gen-input-border: #3a3530;
+  --gen-button-bg: #2a2520;
+  --gen-button-hover: #3a3530;
+  --gen-accent: #f59e0b;
+  --gen-accent-bg: rgba(245, 158, 11, 0.1);
+}
+
+/* Generator component styles */
+.generator-card {
+  background: var(--gen-bg);
+  border: 1px solid var(--gen-border);
+}
+
+.generator-text {
+  color: var(--gen-text);
+}
+
+.generator-text-muted {
+  color: var(--gen-text-muted);
+}
+
+.generator-input {
+  background: var(--gen-input-bg);
+  border: 1px solid var(--gen-input-border);
+  color: var(--gen-text);
+}
+
+.generator-button {
+  background: var(--gen-button-bg);
+  color: var(--gen-text-muted);
+}
+
+.generator-button:hover {
+  background: var(--gen-button-hover);
+}
+
+.generator-accent {
+  color: var(--gen-accent);
+  background: var(--gen-accent-bg);
 }
