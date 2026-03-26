@@ -26,6 +26,7 @@ export default async function GalleryPage({
         searchPlaceholder: t("searchPlaceholder"),
         selectStyle: t("selectStyle"),
         allStyles: t("allStyles"),
+        popular: t("popular"),
         loading: t("loading"),
         noResults: t("noResults"),
         noResultsHint: t("noResultsHint"),

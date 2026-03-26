@@ -10,10 +10,11 @@
   "gallery": {
     "badge": "Inspiration Gallery",
     "title": "Explore the World of AI Art",
-    "description": "Every artwork is a meeting of imagination and algorithms. Discover infinite inspiration here.",
+    "description": "Every artwork is a meeting of imagination and algorithms. Discover endless inspiration here.",
     "searchPlaceholder": "Search by keywords or style...",
     "selectStyle": "Select Style",
     "allStyles": "✨ All Styles",
+    "popular": "Popular",
     "loading": "Loading artworks...",
     "noResults": "No matching artworks found",
     "noResultsHint": "Try a different keyword",
@@ -45,6 +46,190 @@
     "daily": "Daily",
     "claim": "Claim",
     "pts": "pts"
+  },
+  "home": {
+    "hero": {
+      "subtitle": "✨ Create stunning images in seconds",
+      "description": "Dream it. Create it. Share it.",
+      "badges": {
+        "free": "100% Free",
+        "noLogin": "No Login Required",
+        "fast": "Lightning Fast",
+        "unlimited": "Unlimited Generations"
+      }
+    },
+    "generator": {
+      "title": "AI Image Generator",
+      "imageUpload": "Image",
+      "promptPlaceholder": "Describe the image you want to generate...",
+      "negativePrompt": "Negative prompt",
+      "negativePromptPlaceholder": "What to avoid...",
+      "ratio": "Ratio",
+      "style": "No Style",
+      "color": "Color",
+      "lighting": "Light",
+      "composition": "Compose",
+      "clear": "Clear",
+      "random": "Lavie Magic",
+      "fastMode": "Fast",
+      "generate": "Generate",
+      "generating": "Generating...",
+      "notEnoughCredits": "Not enough credits. You need {cost} credits to generate.",
+      "generationFailed": "Generation failed. Please try again."
+    },
+    "results": {
+      "title": "Generated Image",
+      "freePlan": "You're using the Free Plan",
+      "upgradePrompt": "Upgrade to Premium for 5x faster speed, better quality & ad-free experience",
+      "upgradeBtn": "Upgrade Now"
+    },
+    "features": {
+      "title": "Why Choose Lavie AI",
+      "free": {
+        "title": "Zero-Cost Creation",
+        "desc": "World's first completely free AI image generator. No hidden fees, no subscriptions required."
+      },
+      "quality": {
+        "title": "State-of-the-Art Quality",
+        "desc": "Smart routing selects the optimal model for your prompts, ensuring exceptional image quality."
+      },
+      "understanding": {
+        "title": "Advanced Text Understanding",
+        "desc": "Accurately interprets complex prompts with multiple subjects, styles, and descriptions."
+      },
+      "speed": {
+        "title": "Lightning-Fast Generation",
+        "desc": "Optimized inference pipeline delivers results in seconds, not minutes."
+      },
+      "privacy": {
+        "title": "Enhanced Privacy",
+        "desc": "Zero data retention policy. Your prompts are never stored or used for training."
+      },
+      "styles": {
+        "title": "Multi-Style Support",
+        "desc": "From photorealistic to anime, oil painting to cyberpunk — 32 styles to explore."
+      }
+    },
+    "testimonials": {
+      "title": "What Our Users Say About Lavie AI",
+      "t1": { "text": "Absolutely incredible! The image quality is amazing and it's completely free. I've tried many AI generators but this is by far the best.", "name": "Sarah Chen", "role": "Digital Artist" },
+      "t2": { "text": "The variety of styles is outstanding. From anime to photorealistic, it handles everything perfectly. My go-to tool for creative projects.", "name": "Marcus Webb", "role": "Game Developer" },
+      "t3": { "text": "No login required and completely free! Perfect for quick experiments and brainstorming. The generation speed is impressive.", "name": "Emily Park", "role": "Marketing Manager" },
+      "t4": { "text": "Lavie AI transformed my workflow. The UI is incredibly intuitive, and the results are stunning every single time.", "name": "David Kim", "role": "Graphic Designer" },
+      "t5": { "text": "I can't believe this is free. The prompt adherence is spot on, capturing even the smallest details I specify.", "name": "Laura Martinez", "role": "Illustrator" },
+      "t6": { "text": "Lightning fast! I generated a dozen variations for my ad campaign in under a minute.", "name": "James Wilson", "role": "Content Creator" },
+      "t7": { "text": "The anime style model is breathtaking. It perfectly captures the aesthetic I was aiming for.", "name": "Yuki Tanaka", "role": "Manga Artist" },
+      "t8": { "text": "Finally, a generator that doesn't hide its best features behind a paywall. Lavie AI is a game changer.", "name": "Alex Johnson", "role": "Freelancer" },
+      "t9": { "text": "The lighting and composition controls are so easy to use. Highly recommended for concept art.", "name": "Sophie Brown", "role": "Concept Artist" },
+      "t10": { "text": "I use Lavie AI every day for my blog posts. The visual quality makes my articles stand out.", "name": "Michael Chang", "role": "Blogger" },
+      "t11": { "text": "Such a clean and modern interface. It’s a joy to use compared to other cluttered tools.", "name": "Emma Davis", "role": "UI/UX Designer" },
+      "t12": { "text": "The 3D render style looks incredibly professional. It saved me hours of modeling time.", "name": "Oliver Smith", "role": "3D Artist" },
+      "t13": { "text": "I love the 'Surprise Me' feature! It gives me amazing ideas when I have creative block.", "name": "Chloe White", "role": "Creative Director" },
+      "t14": { "text": "Unmatched speed and quality. This is now an essential part of my design toolkit.", "name": "Daniel Taylor", "role": "Art Director" },
+      "t15": { "text": "The negative prompt feature works flawlessly, giving me exactly what I want without the mess.", "name": "Mia Anderson", "role": "Photographer" },
+      "t16": { "text": "Beautiful gradients, smooth UX, and top-tier AI generation. What more could you ask for?", "name": "Lucas Thomas", "role": "Web Developer" },
+      "t17": { "text": "It handles complex architectural prompts better than paid alternatives. Truly impressive.", "name": "Isabella Garcia", "role": "Architect" },
+      "t18": { "text": "A fantastic resource for storyboarding. It brings my scripts to life instantly.", "name": "William Martin", "role": "Filmmaker" }
+    },
+    "useCases": {
+      "title": "Lavie AI Built for Every Creative Need",
+      "designers": {
+        "title": "For Designers",
+        "desc": "Generate UI mockups, icons, and web assets instantly to accelerate your design process."
+      },
+      "marketers": {
+        "title": "For Marketers",
+        "desc": "Create engaging social media posts, ad creatives, and blog banners that convert."
+      },
+      "creators": {
+        "title": "For Content Creators",
+        "desc": "Bring your stories to life with stunning book covers, character concepts, and illustrations."
+      },
+      "ecommerce": {
+        "title": "For E-commerce",
+        "desc": "Design professional product backgrounds and lifestyle mockups without a photoshoot."
+      },
+      "gameDev": {
+        "title": "For Game Developers",
+        "desc": "Generate concept art, character sprites, and environmental assets for your next indie game."
+      },
+      "educators": {
+        "title": "For Educators",
+        "desc": "Create engaging visual aids and diagrams to make learning materials more interactive."
+      }
+    },
+    "howItWorks": {
+      "title": "Create Art in 3 Simple Steps",
+      "step1": {
+        "title": "1. Enter your prompt",
+        "desc": "Describe what you want to see. The more details, the better."
+      },
+      "step2": {
+        "title": "2. Choose a style",
+        "desc": "Select from 30+ artistic styles, or let the AI decide."
+      },
+      "step3": {
+        "title": "3. Generate & Download",
+        "desc": "Get your high-quality image in seconds, ready to use."
+      }
+    },
+    "cta": {
+      "title": "Ready to Create Your Masterpiece?",
+      "desc": "Unleash your creativity and bring your imagination to life with Lavie AI.",
+      "button": "Try Lavie AI"
+    },
+    "seoText": "Lavie AI is a powerful free AI image generator that allows you to transform text into stunning visual art in seconds. Whether you need photorealistic images, anime illustrations, 3D renders, or digital art, our text-to-image generator delivers exceptional quality without any signup required. Create unlimited AI pictures, backgrounds, and assets for your creative projects today.",
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "q1": {
+        "q": "Is Lavie AI really free to use?",
+        "a": "Yes! Lavie AI is completely free to use. We offer free daily credits so you can generate images without any payment. No credit card required."
+      },
+      "q2": {
+        "q": "Do I need to create an account?",
+        "a": "No login is required! You can start generating images immediately. However, creating an account lets you save your generation history and access more features."
+      },
+      "q3": {
+        "q": "What image styles are available?",
+        "a": "We offer 32 different art styles including Photorealistic, Anime, Oil Painting, Watercolor, Sketch, 3D Render, Cyberpunk, Fantasy, and many more. New styles are added regularly."
+      },
+      "q4": {
+        "q": "How fast can I generate an image?",
+        "a": "With Fast Mode enabled, most images are generated in just a few seconds. Standard generation typically takes 10-30 seconds depending on complexity and server load."
+      },
+      "q5": {
+        "q": "Can I use generated images commercially?",
+        "a": "Yes! Images you generate with Lavie AI can be used for personal and commercial purposes. You retain full ownership of the images you create."
+      },
+      "q6": {
+        "q": "Is my data kept private?",
+        "a": "Absolutely. We have a zero data retention policy. Your prompts are never stored on our servers after generation is complete and are never used for training AI models."
+      }
+    }
+  },
+  "blog": {
+    "title": "Lavie AI Blog & Guides",
+    "description": "Discover tips, tutorials, and inspiration for creating stunning AI art.",
+    "readMore": "Read Article",
+    "backToBlog": "Back to all posts",
+    "relatedPosts": "You might also like",
+    "posts": {
+      "anime": {
+        "title": "The Ultimate Guide to Anime AI Art Prompts in 2026",
+        "excerpt": "Master the art of generating breathtaking anime-style images with these proven prompt structures and keywords.",
+        "content": "<p>Creating the perfect anime illustration requires more than just typing 'anime style'. To get consistent, high-quality results, you need to understand how the AI interprets specific stylistic keywords.</p><h3>1. Start with the Medium and Style</h3><p>Always begin your prompt by defining the exact visual style. Use combinations like <em>'masterpiece, best quality, ultra-detailed anime illustration, studio ghibli style, makoto shinkai'</em> to set a high baseline for quality.</p><h3>2. Subject Description</h3><p>Be specific about your character. Describe their hair color, eye shape, clothing, and pose. For example: <em>'1girl, silver hair flowing in the wind, glowing red eyes, wearing a futuristic cyberpunk jacket, dynamic pose, looking at viewer'</em>.</p><h3>3. Lighting and Environment</h3><p>Lighting makes or breaks an image. Add keywords like <em>'cinematic lighting, rim lighting, lens flare, depth of field'</em>. For the background, be just as descriptive: <em>'standing in a neon-lit tokyo street, rain puddles reflecting lights, cyberpunk city background'</em>.</p><p><strong>Pro Tip:</strong> Use the negative prompt to avoid common AI artifacts like 'bad anatomy, extra fingers, missing limbs, blurry'.</p>"
+      },
+      "ecommerce": {
+        "title": "How to Generate Professional E-commerce Product Backgrounds",
+        "excerpt": "Save thousands on product photography by using AI to generate realistic, stunning backgrounds for your products.",
+        "content": "<p>High-quality product imagery is crucial for e-commerce conversion rates. With Lavie AI, you can generate endless variations of lifestyle and studio backgrounds without renting a studio.</p><h3>The Setup</h3><p>When generating backgrounds, you want the focus to remain on where your product will eventually be placed. Use prompts that create natural 'pedestals' or clear spaces.</p><h3>Studio Prompts</h3><p>Try this for a clean look: <em>'Minimalist product photography background, white marble podium, soft pastel pink background, elegant morning sunlight, sharp shadows, 8k, photorealistic'</em>.</p><h3>Lifestyle Prompts</h3><p>For a more natural setting: <em>'Cozy modern living room background, blurred depth of field, wooden coffee table in focus, sunlight streaming through window, indoor plants, soft warm lighting, professional interior photography'</em>.</p><h3>Integration</h3><p>Once generated, use your favorite photo editing tool to remove the background of your actual product and place it onto the AI-generated scene. The matching lighting and shadows will make it look like a real photoshoot.</p>"
+      },
+      "negative": {
+        "title": "Mastering Negative Prompts: What They Are and How to Use Them",
+        "excerpt": "Sometimes telling the AI what NOT to draw is more important than telling it what to draw. Learn the secrets of negative prompting.",
+        "content": "<p>A negative prompt is a set of instructions that tells the AI image generator exactly what elements, styles, or artifacts it should avoid including in the final output. It acts as a filter, cleaning up the generation process.</p><h3>Why Use Negative Prompts?</h3><p>AI models are trained on vast datasets that include both masterpieces and poorly drawn images. By using negative prompts, you force the AI to steer clear of the 'bad' data.</p><h3>The Essential Negative Prompt Formula</h3><p>For almost every generation, especially human subjects, you should include a base negative prompt like this:<br/><em>'ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions'</em></p><h3>Style-Specific Negatives</h3><p>If you want a photorealistic image, use negative prompts to avoid artistic styles: <em>'illustration, painting, cartoon, anime, 3d render, sketch, drawing, watermark, signature'</em>.</p><p>Experimenting with negative prompts is just as important as tweaking your main prompt. Don't be afraid to add specific things you want removed, like <em>'red cars, text, clouds'</em> if they keep appearing unwanted in your generations.</p>"
+      }
+    }
   },
   "footer": {
     "tagline": "Free AI Image Generator"

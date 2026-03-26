@@ -40,14 +40,16 @@ const styleLabels: Record<string, string> = {
 
 interface GalleryShowcaseProps {
   onUsePrompt: (prompt: string) => void;
+  sort?: string;
 }
 
-export function GalleryShowcase({ onUsePrompt }: GalleryShowcaseProps) {
+export function GalleryShowcase({ onUsePrompt, sort }: GalleryShowcaseProps) {
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    galleryApi.getRecommended({ limit: 16 })
+    const params = sort === 'popular' ? { limit: 16, sort: 'popular' } : { limit: 16 };
+    galleryApi.getRecommended(params)
       .then(data => {
         if (data.images && data.images.length > 0) {
           setGalleryItems(data.images);
@@ -59,7 +61,7 @@ export function GalleryShowcase({ onUsePrompt }: GalleryShowcaseProps) {
       .finally(() => {
         setIsLoading(false);
       });
-  }, []);
+  }, [sort]);
 
   return (
     <div className="space-y-4">
@@ -87,13 +89,17 @@ export function GalleryShowcase({ onUsePrompt }: GalleryShowcaseProps) {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {galleryItems.map((item) => {
-            const style = item.style || "illustration";
-            const emoji = styleEmojis[style] || "🎨";
-            const label = styleLabels[style] || style;
-            const imageUrl = item.result_url || item.thumbnail_url || item.image_url;
+          {(() => {
+            const maxRecommendedLevel = Math.max(0, ...galleryItems.map(i => i.recommended_level || 0));
+            return galleryItems.map((item) => {
+              const style = item.style || "illustration";
+              const emoji = styleEmojis[style] || "🎨";
+              const label = styleLabels[style] || style;
+              const imageUrl = item.result_url || item.thumbnail_url || item.image_url;
+              
+              const isPopular = (item.recommended_level || 0) === maxRecommendedLevel && maxRecommendedLevel > 0;
 
-            return (
+              return (
               <div
                 key={item.id}
                 className="group relative bg-gray-100 rounded-xl overflow-hidden cursor-pointer aspect-square"
@@ -114,8 +120,14 @@ export function GalleryShowcase({ onUsePrompt }: GalleryShowcaseProps) {
                   </div>
                 )}
 
-                {/* Style badge - 显示style不是useCase */}
-                <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 rounded-full">
+                {/* Style & Popular badge */}
+                <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 rounded-full flex gap-1 items-center">
+                  {isPopular && (
+                    <>
+                      <span className="text-xs font-medium text-amber-400">🔥 Popular</span>
+                      <span className="text-xs text-white/50">|</span>
+                    </>
+                  )}
                   <span className="text-xs text-white">
                     {emoji} {label}
                   </span>
@@ -132,7 +144,7 @@ export function GalleryShowcase({ onUsePrompt }: GalleryShowcaseProps) {
                 </div>
               </div>
             );
-          })}
+          })})()}
         </div>
       )}
 

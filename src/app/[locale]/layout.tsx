@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   title: "Lavie AI - Free AI Image Generator",
   description: "Create stunning images with AI. Free text to image, AI art creation. No login required. Start creating now!",
   keywords: ["AI image generator", "text to image", "AI art", "free image generator"],
+  icons: {
+    icon: '/icon',
+    shortcut: '/icon',
+    apple: '/icon',
+  },
   openGraph: {
     title: "Lavie AI - Free AI Image Generator",
     description: "Create stunning images with AI",
@@ -32,7 +37,7 @@ export default async function LocaleLayout({
   params: Promise<{ locale?: string }>;
 }) {
   const { locale } = await params;
-  const resolvedLocale = locale && routing.locales.includes(locale as "en" | "zh") 
+  const resolvedLocale = locale && routing.locales.includes(locale as "en" | "zh" | "fr" | "it" | "de") 
     ? locale 
     : routing.defaultLocale;
 

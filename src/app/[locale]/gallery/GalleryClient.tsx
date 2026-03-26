@@ -15,6 +15,7 @@ interface GalleryItem {
   user_name?: string;
   likes?: number;
   created_at?: number;
+  recommended_level?: number;
 }
 
 interface StyleOption {
@@ -30,6 +31,7 @@ interface GalleryTranslations {
   searchPlaceholder: string;
   selectStyle: string;
   allStyles: string;
+  popular: string;
   loading: string;
   noResults: string;
   noResultsHint: string;
@@ -117,7 +119,10 @@ export function GalleryClient({
       const params = new URLSearchParams();
       params.set('limit', String(LIMIT));
       params.set('offset', String(currentOffset));
-      if (selectedStyle) {
+      
+      if (selectedStyle === 'popular') {
+        params.set('sort', 'popular');
+      } else if (selectedStyle) {
         params.set('style', selectedStyle);
       }
 
@@ -257,7 +262,9 @@ export function GalleryClient({
               >
                 <Filter className="w-4 h-4" />
                 <span className="text-sm font-medium">
-                  {selectedStyle ? styles.find(s => s.id === selectedStyle)?.label || translations.selectStyle : translations.selectStyle}
+                  {selectedStyle === 'popular' ? `🔥 ${translations.popular}` : 
+                   selectedStyle ? styles.find(s => s.id === selectedStyle)?.label || translations.selectStyle : 
+                   translations.selectStyle}
                 </span>
                 <ChevronDown className="w-4 h-4" />
               </button>
@@ -280,6 +287,22 @@ export function GalleryClient({
                   >
                     {translations.allStyles}
                   </button>
+                  
+                  {/* Popular Category */}
+                  <button
+                    onClick={() => {
+                      setSelectedStyle('popular');
+                      document.getElementById('style-dropdown')?.classList.add('hidden');
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors mt-1 ${
+                      selectedStyle === 'popular'
+                        ? "bg-amber-100 text-amber-700 font-medium"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    🔥 {translations.popular}
+                  </button>
+                  
                   <div className="border-t my-2" />
                   <div className="grid grid-cols-2 gap-1">
                     {styles.map((style) => (
@@ -353,12 +376,15 @@ export function GalleryClient({
             />
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filteredGallery.map((item) => {
-                const styleLabel = item.style ? item.style.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "";
-                const imageAlt = item.prompt ? `${item.prompt} - AI Generated ${styleLabel} Art` : "AI Generated Artwork";
-                
-                return (
-                  <article
+              {(() => {
+                const maxRecommendedLevel = Math.max(0, ...filteredGallery.map(i => i.recommended_level || 0));
+                return filteredGallery.map((item) => {
+                  const styleLabel = item.style ? item.style.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "";
+                  const imageAlt = item.prompt ? `${item.prompt} - AI Generated ${styleLabel} Art` : "AI Generated Artwork";
+                  const isPopular = (item.recommended_level || 0) === maxRecommendedLevel && maxRecommendedLevel > 0;
+                  
+                  return (
+                    <article
                     key={item.id}
                     className="group relative aspect-square bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1"
                     onClick={() => setSelectedItem(item)}
@@ -386,10 +412,16 @@ export function GalleryClient({
 
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     
-                    {item.style && (
+                    {(item.style || isPopular) && (
                       <div className="absolute top-3 left-3 px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full shadow-sm">
-                        <span className="text-xs font-medium text-gray-700">
-                          {styleEmojis[item.style]} {styleLabel}
+                        <span className="text-xs font-medium text-gray-700 flex gap-1 items-center">
+                          {isPopular && (
+                            <>
+                              <span className="text-amber-500">🔥 {translations.popular}</span>
+                              {item.style && <span className="text-gray-300">|</span>}
+                            </>
+                          )}
+                          {item.style && <span>{styleEmojis[item.style]} {styleLabel}</span>}
                         </span>
                       </div>
                     )}
@@ -412,7 +444,7 @@ export function GalleryClient({
                     </div>
                   </article>
                 );
-              })}
+              })})()}
             </div>
 
             <div ref={loadMoreRef} className="flex items-center justify-center py-8">

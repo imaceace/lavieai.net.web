@@ -303,17 +303,18 @@ export const galleryApi = {
     }
   },
 
-  getRecommended: async (params?: { limit?: number }): Promise<{ images: Array<{ id: string; result_url: string; prompt: string; style: string | null; use_case: string | null }> }> => {
+  getRecommended: async (params?: { limit?: number; offset?: number; style?: string; sort?: string }): Promise<{ images: any[] }> => {
     try {
-      const searchParams = new URLSearchParams();
-      searchParams.set('limit', String(params?.limit || 16));
+      const query = new URLSearchParams();
+      if (params?.limit) query.set('limit', String(params.limit));
+      if (params?.offset) query.set('offset', String(params.offset));
+      if (params?.style) query.set('style', params.style);
+      if (params?.sort) query.set('sort', params.sort);
 
-      const res = await fetch(`${API_BASE}/api/gallery?${searchParams}`, {
-        credentials: 'include',
-      });
+      const res = await fetch(`${API_BASE}/api/gallery?${query}`);
       if (!res.ok) return { images: [] };
-      const response = await res.json();
-      return { images: response.data || [] };
+      const data = await res.json();
+      return { images: data.success ? data.data : [] };
     } catch {
       return { images: [] };
     }

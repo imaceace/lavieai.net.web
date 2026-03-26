@@ -144,7 +144,7 @@ export function Header() {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="text-2xl font-bold bg-gradient-to-r from-amber-500 via-green-500 to-blue-500 bg-clip-text text-transparent">
+            <span className="text-2xl font-bold bg-gradient-to-r from-violet-600 via-rose-500 to-amber-500 bg-clip-text text-transparent">
               Lavie AI
             </span>
           </Link>
@@ -186,9 +186,9 @@ export function Header() {
                   <button
                     onClick={handleClaimDaily}
                     disabled={claimingDaily}
-                    className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-md shadow-rose-200/50 dark:shadow-rose-900/50 hover:opacity-90"
                     style={{
-                      background: 'linear-gradient(90deg, #f59e0b, #10b981)',
+                      background: 'linear-gradient(90deg, #f43f5e, #f59e0b)',
                       color: '#fff',
                     }}
                     title="Claim your daily credits!"

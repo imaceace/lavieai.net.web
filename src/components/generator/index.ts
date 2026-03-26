@@ -18,5 +18,4 @@ export { GenerateButton } from "./GenerateButton";
 export { ExampleGallery } from "./ExampleGallery";
 export { TryStyleCards } from "./TryStyleCards";
 export { GalleryShowcase } from "./GalleryShowcase";
-export { RecommendedPrompts } from "./RecommendedPrompts";
 export { GenerationResult } from "./GenerationResult";

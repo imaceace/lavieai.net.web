@@ -29,12 +29,10 @@ body {
 .animate-gradient {
   background: linear-gradient(
     90deg,
+    #7c3aed,
+    #f43f5e,
     #f59e0b,
-    #10b981,
-    #3b82f6,
-    #8b5cf6,
-    #ec4899,
-    #f59e0b
+    #7c3aed
   );
   background-size: 200% 200%;
   -webkit-background-clip: text;
@@ -55,8 +53,8 @@ body {
   --gen-input-border: #e5e7eb;
   --gen-button-bg: #f3f4f6;
   --gen-button-hover: #e5e7eb;
-  --gen-accent: #f59e0b;
-  --gen-accent-bg: #fef3c7;
+  --gen-accent: #f43f5e;
+  --gen-accent-bg: #ffe4e6;
 }
 
 .dark {
@@ -71,8 +69,34 @@ body {
   --gen-input-border: #3a3530;
   --gen-button-bg: #2a2520;
   --gen-button-hover: #3a3530;
-  --gen-accent: #f59e0b;
-  --gen-accent-bg: rgba(245, 158, 11, 0.1);
+  --gen-accent: #f43f5e;
+  --gen-accent-bg: rgba(244, 63, 94, 0.1);
+}
+
+/* Marquee Animation */
+@keyframes marquee-vertical {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
+@keyframes marquee-vertical-reverse {
+  from { transform: translateY(-50%); }
+  to { transform: translateY(0); }
+}
+
+.animate-marquee-vertical {
+  animation: marquee-vertical 40s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-vertical-reverse {
+  animation: marquee-vertical-reverse 40s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-vertical:hover,
+.animate-marquee-vertical-reverse:hover {
+  animation-play-state: paused;
 }
 
 /* Generator component styles */
