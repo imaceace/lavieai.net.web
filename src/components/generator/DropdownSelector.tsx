@@ -14,9 +14,10 @@ interface DropdownSelectorProps {
   options: DropdownOption[];
   placeholder: string;
   icon?: React.ReactNode;
+  hideClearOption?: boolean;
 }
 
-export function DropdownSelector({ value, onChange, options, placeholder, icon }: DropdownSelectorProps) {
+export function DropdownSelector({ value, onChange, options, placeholder, icon, hideClearOption }: DropdownSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -89,23 +90,25 @@ export function DropdownSelector({ value, onChange, options, placeholder, icon }
           }}
           onMouseLeave={startCloseTimer}
         >
-          <button
-            type="button"
-            onClick={() => {
-              onChange(null);
-              closeDropdown();
-            }}
-            className="w-full px-3 py-2 text-left text-xs transition-colors hover:opacity-80"
-            style={{ color: 'var(--gen-text-muted)' }}
-            onMouseEnter={() => {
-              if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-                timeoutRef.current = null;
-              }
-            }}
-          >
-            {placeholder}
-          </button>
+          {!hideClearOption && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange(null);
+                closeDropdown();
+              }}
+              className="w-full px-3 py-2 text-left text-xs transition-colors hover:opacity-80"
+              style={{ color: 'var(--gen-text-muted)' }}
+              onMouseEnter={() => {
+                if (timeoutRef.current) {
+                  clearTimeout(timeoutRef.current);
+                  timeoutRef.current = null;
+                }
+              }}
+            >
+              {placeholder}
+            </button>
+          )}
           {options.map((option) => (
             <button
               key={option.id}

@@ -9,6 +9,7 @@ interface User {
   subscription_expire?: number;
   created_at?: number;
   credits: number;
+  is_public_default?: number;
 }
 
 interface UserStore {

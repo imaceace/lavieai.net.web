@@ -39,6 +39,7 @@ interface Work {
   status: string;
   created_at: number;
   points_cost: number;
+  is_recommended?: number;
 }
 
 const PLAN_LABELS: Record<string, string> = {
@@ -93,6 +94,11 @@ export default function ProfilePage() {
   const [loadingSubs, setLoadingSubs] = useState(false);
   const [loadingWorks, setLoadingWorks] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
+  const [selectedWorks, setSelectedWorks] = useState<Set<string>>(new Set());
+  const [updatingWorks, setUpdatingWorks] = useState(false);
+  const [updatingDefault, setUpdatingDefault] = useState(false);
+
+  const isMember = user?.subscription_type && user.subscription_type !== 'free';
 
   useEffect(() => {
     async function init() {
@@ -106,6 +112,7 @@ export default function ProfilePage() {
           subscription_type: (me.tier || 'free') as any,
           credits: me.credits,
           subscription_expire: me.subscription_expire,
+          is_public_default: me.is_public_default,
         });
       }
       setPageLoading(false);
@@ -258,6 +265,34 @@ export default function ProfilePage() {
             {/* Overview Tab */}
             {activeTab === "overview" && (
               <div className="space-y-6">
+                {isMember && (
+                  <div className="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Public Gallery by Default</h3>
+                      <p className="text-sm text-gray-500">Automatically publish your generated images to the public gallery.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={user?.is_public_default === 1}
+                        disabled={updatingDefault}
+                        onChange={async (e) => {
+                          const newValue = e.target.checked ? 1 : 0;
+                          setUpdatingDefault(true);
+                          const success = await userApi.updatePublicDefault(newValue);
+                          if (success && user) {
+                            setUser({ ...user, is_public_default: newValue });
+                          } else {
+                            alert("Failed to update setting");
+                          }
+                          setUpdatingDefault(false);
+                        }}
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-4">
                   <Link
                     href="/pricing"
@@ -366,7 +401,48 @@ export default function ProfilePage() {
             {/* History Tab */}
             {activeTab === "history" && (
               <div>
-                <h3 className="font-semibold mb-4">Generation History</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">Generation History</h3>
+                  {isMember && works.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">{selectedWorks.size} selected</span>
+                      <button 
+                        disabled={selectedWorks.size === 0 || updatingWorks}
+                        onClick={async () => {
+                          setUpdatingWorks(true);
+                          const success = await userApi.updateWorksRecommended(Array.from(selectedWorks), 1);
+                          if (success) {
+                            setWorks(works.map(w => selectedWorks.has(w.id) ? { ...w, is_recommended: 1 } : w));
+                            setSelectedWorks(new Set());
+                          } else {
+                            alert("Failed to update");
+                          }
+                          setUpdatingWorks(false);
+                        }}
+                        className="px-3 py-1.5 text-sm bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 disabled:opacity-50"
+                      >
+                        Set Public
+                      </button>
+                      <button 
+                        disabled={selectedWorks.size === 0 || updatingWorks}
+                        onClick={async () => {
+                          setUpdatingWorks(true);
+                          const success = await userApi.updateWorksRecommended(Array.from(selectedWorks), 0);
+                          if (success) {
+                            setWorks(works.map(w => selectedWorks.has(w.id) ? { ...w, is_recommended: 0 } : w));
+                            setSelectedWorks(new Set());
+                          } else {
+                            alert("Failed to update");
+                          }
+                          setUpdatingWorks(false);
+                        }}
+                        className="px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded hover:bg-gray-200 disabled:opacity-50"
+                      >
+                        Set Private
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {loadingWorks ? (
                   <div className="text-center py-8 text-gray-400">Loading...</div>
                 ) : works.length === 0 ? (
@@ -376,7 +452,32 @@ export default function ProfilePage() {
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {works.map((work) => (
-                      <div key={work.id} className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                      <div 
+                        key={work.id} 
+                        className={`group relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedWorks.has(work.id) ? 'border-indigo-500' : 'border-transparent'}`}
+                        onClick={() => {
+                          if (!isMember) return;
+                          const newSelected = new Set(selectedWorks);
+                          if (newSelected.has(work.id)) newSelected.delete(work.id);
+                          else newSelected.add(work.id);
+                          setSelectedWorks(newSelected);
+                        }}
+                      >
+                        {isMember && (
+                          <div className="absolute top-2 left-2 z-10">
+                            <input 
+                              type="checkbox" 
+                              checked={selectedWorks.has(work.id)} 
+                              readOnly 
+                              className="w-4 h-4 text-indigo-600 rounded border-gray-300 pointer-events-none"
+                            />
+                          </div>
+                        )}
+                        {work.is_recommended === 1 && (
+                          <div className="absolute top-2 right-2 z-10 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded backdrop-blur-sm">
+                            Public
+                          </div>
+                        )}
                         {work.result_url ? (
                           <img
                             src={work.thumbnail_url || work.result_url}

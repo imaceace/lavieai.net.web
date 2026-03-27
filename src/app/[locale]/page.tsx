@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import {
   DropdownSelector,
@@ -8,7 +8,7 @@ import {
   GalleryShowcase,
   GenerationResult,
 } from "@/components/generator";
-import { generateApi, pollTaskStatus, userApi, configApi } from "@/lib/api-client";
+import { generateApi, pollTaskStatus, userApi, configApi, authApi } from "@/lib/api-client";
 import Script from "next/script";
 
 // Style icons mapping
@@ -27,18 +27,19 @@ const styleIcons: Record<string, string> = {
 };
 
 const colorIcons: Record<string, string> = {
-  "none": "○", "vibrant": "●", "muted": "◌", "warm": "◐", "cool": "◑",
-  "pastel": "◔", "monochrome": "◑", "neon": "◈",
+  "none": "○", "vibrant": "🌈", "muted": "🍂", "warm": "🌅", "cool": "❄️",
+  "pastel": "🌸", "monochrome": "🔲", "neon": "🚥", "high-contrast": "🌗", "sepia": "🎞️"
 };
 
 const lightingIcons: Record<string, string> = {
-  "none": "○", "soft": "◐", "dramatic": "◈", "golden-hour": "◐", "blue-hour": "◑",
-  "studio": "●", "natural": "☀", "neon": "◈",
+  "none": "○", "soft": "☁️", "dramatic": "🎭", "golden-hour": "🌇", "blue-hour": "🌃",
+  "studio": "💡", "natural": "☀️", "neon": "🔦", "volumetric": "🌫️", "cinematic": "🎬", 
+  "backlit": "👤", "ambient": "🕯️"
 };
 
 const compositionIcons: Record<string, string> = {
-  "none": "○", "centered": "⊕", "rule-of-thirds": "▦", "diagonal": "⤡",
-  "symmetrical": "⊗", "frame": "⊞", "leading": "↗", "depth": "◫",
+  "none": "○", "centered": "🎯", "rule-of-thirds": "📐", "diagonal": "↘️",
+  "symmetrical": "🦋", "frame": "🖼️", "leading": "🛣️", "depth": "🌌",
 };
 
 const avatarGradients = [
@@ -53,6 +54,15 @@ const avatarGradients = [
   "from-green-500 to-emerald-500",
   "from-violet-500 to-fuchsia-500"
 ];
+
+const ratioIcons: Record<string, React.ReactNode> = {
+  "1:1": <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>,
+  "16:9": <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="6" width="20" height="12" rx="2" ry="2"/></svg>,
+  "9:16": <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="2" width="12" height="20" rx="2" ry="2"/></svg>,
+  "4:3": <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="2" ry="2"/></svg>,
+  "3:4": <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="3" width="14" height="18" rx="2" ry="2"/></svg>,
+  "21:9": <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="8" width="20" height="8" rx="2" ry="2"/></svg>,
+};
 
 export default function Home() {
   const t = useTranslations("home");
@@ -69,27 +79,80 @@ export default function Home() {
   // Generator state
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
-  const [style, setStyle] = useState<string | null>(null);
+  const [style, setStyle] = useState<string | null>("none");
   const [resolution, setResolution] = useState<[number, number]>([1024, 1024]);
-  const [color, setColor] = useState<string | null>(null);
-  const [lighting, setLighting] = useState<string | null>(null);
-  const [composition, setComposition] = useState<string | null>(null);
+  const [color, setColor] = useState<string | null>("none");
+  const [lighting, setLighting] = useState<string | null>("none");
+  const [composition, setComposition] = useState<string | null>("none");
+  const [model, setModel] = useState<string>("basic");
   const [isGenerating, setIsGenerating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [result, setResult] = useState<{ imageUrl: string } | null>(null);
+
+  // User points state
+  const [userCredits, setUserCredits] = useState<number | null>(null);
+  const [user, setUser] = useState<any>(null); // To store user details for checking tier
 
   // Generator extra state
   const [fastMode, setFastMode] = useState(false);
   const [showNegativePrompt, setShowNegativePrompt] = useState(false);
 
-  // User points state
-  const [userCredits, setUserCredits] = useState<number | null>(null);
+  // Track last manual action for "Last Operation Wins" logic
+  const lastPromptEditTime = useRef<number>(0);
+  const lastDropdownEditTime = useRef<number>(0);
+
+  // Sniff keywords from prompt to update selectors
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!prompt || lastDropdownEditTime.current > lastPromptEditTime.current) return;
+      
+      const lowerPrompt = prompt.toLowerCase();
+      
+      // Sniff color
+      const foundColor = colorOptions.find(c => c.id !== 'none' && lowerPrompt.includes(c.id.replace('-', ' ')));
+      if (foundColor && color !== foundColor.id) {
+        setColor(foundColor.id);
+      }
+      
+      // Sniff lighting
+      const foundLight = lightingOptions.find(l => l.id !== 'none' && lowerPrompt.includes(l.id.replace('-', ' ')));
+      if (foundLight && lighting !== foundLight.id) {
+        setLighting(foundLight.id);
+      }
+      
+      // Sniff composition
+      const foundComp = compositionOptions.find(c => c.id !== 'none' && lowerPrompt.includes(c.id.replace('-', ' ')));
+      if (foundComp && composition !== foundComp.id) {
+        setComposition(foundComp.id);
+      }
+
+      // Sniff style
+      const foundStyle = styleOptions.find(s => s.id !== 'none' && lowerPrompt.includes(s.id.replace('-', ' ')));
+      if (foundStyle && style !== foundStyle.id) {
+        setStyle(foundStyle.id);
+      }
+      
+    }, 800); // 800ms debounce for smoother typing
+    
+    return () => clearTimeout(timer);
+  }, [prompt, colorOptions, lightingOptions, compositionOptions, styleOptions, color, lighting, composition, style]);
 
   useEffect(() => {
-    // Fetch user credits on mount
-    userApi.getPoints()
-      .then(data => setUserCredits(data?.credits ?? null))
-      .catch(() => setUserCredits(null));
+    // Fetch user info and credits on mount
+    authApi.getMe().then(u => {
+      setUser(u);
+      if (u) {
+        setUserCredits(u.credits);
+        setFastMode(true); // Default to Fast Mode for logged-in users
+      } else {
+        setUserCredits(null);
+        setFastMode(false); // Guests cannot use Fast Mode
+      }
+    }).catch(() => {
+      setUser(null);
+      setUserCredits(null);
+      setFastMode(false);
+    });
 
     // Fetch generation options from API (styles, colors, etc.)
     configApi.getGenerationOptions().then(options => {
@@ -98,7 +161,7 @@ export default function Home() {
         setColorOptions(options.colors.map(c => ({ ...c, icon: colorIcons[c.id] || "○" })));
         setLightingOptions(options.lighting.map(l => ({ ...l, icon: lightingIcons[l.id] || "○" })));
         setCompositionOptions(options.composition.map(c => ({ ...c, icon: compositionIcons[c.id] || "○" })));
-        setRatioOptions(options.ratios.map(r => ({ id: r.id, label: r.label })));
+        setRatioOptions(options.ratios.map(r => ({ id: r.id, label: r.label, icon: ratioIcons[r.id] })));
       }
     });
 
@@ -158,8 +221,19 @@ export default function Home() {
     }
   }, []);
 
-  // Generation cost based on model tier
-  const generationCost = fastMode ? 5 : 10;
+  // Generation cost based on model tier and fast mode
+  const getGenerationCost = () => {
+    if (model === 'basic') {
+      return fastMode ? 4 : 0;
+    }
+    const generationCosts: Record<string, number> = {
+      "pro": 6,
+      "max": 120,
+      "ultra": 160
+    };
+    return generationCosts[model] || 10;
+  };
+  const generationCost = getGenerationCost();
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -171,13 +245,42 @@ export default function Home() {
     setIsGenerating(true);
     setResult(null);
 
+    // Append color, lighting, composition to prompt if not already present
+    let finalPrompt = prompt.trim();
+    const lowerFinalPrompt = finalPrompt.toLowerCase();
+
+    if (color && color !== 'none') {
+      const colorLabel = colorOptions.find(c => c.id === color)?.label || color;
+      const cleanLabel = colorLabel.replace(' Colors', '').replace(' Color', '').toLowerCase();
+      if (!lowerFinalPrompt.includes(cleanLabel) && !lowerFinalPrompt.includes(color.replace('-', ' '))) {
+        finalPrompt += `, ${colorLabel} colors`;
+      }
+    }
+    
+    if (lighting && lighting !== 'none') {
+      const lightingLabel = lightingOptions.find(l => l.id === lighting)?.label || lighting;
+      const cleanLabel = lightingLabel.replace(' Lighting', '').replace(' Light', '').toLowerCase();
+      if (!lowerFinalPrompt.includes(cleanLabel) && !lowerFinalPrompt.includes(lighting.replace('-', ' '))) {
+        finalPrompt += `, ${lightingLabel} lighting`;
+      }
+    }
+    
+    if (composition && composition !== 'none') {
+      const compLabel = compositionOptions.find(c => c.id === composition)?.label || composition;
+      const cleanLabel = compLabel.replace(' Composition', '').toLowerCase();
+      if (!lowerFinalPrompt.includes(cleanLabel) && !lowerFinalPrompt.includes(composition.replace('-', ' '))) {
+        finalPrompt += `, ${compLabel} composition`;
+      }
+    }
+
     try {
       const task = await generateApi.textToImage({
-        prompt,
+        prompt: finalPrompt,
         negative_prompt: showNegativePrompt ? negativePrompt : undefined,
         style: style || undefined,
         resolution,
-        model: fastMode ? 'basic' : 'basic', // TODO: based on user tier
+        model: model, // use selected model
+        fast_mode: fastMode,
       });
 
       const completedTask = await pollTaskStatus(
@@ -228,24 +331,90 @@ export default function Home() {
     }, 100);
   };
 
-  const randomPrompts = [
-    "A serene Japanese garden with cherry blossoms, soft morning light",
-    "Cyberpunk cityscape at night with neon signs reflecting on wet streets",
-    "A cozy coffee shop interior with warm lighting and plants",
-    "Majestic dragon flying over misty mountains at sunset",
-    "Abstract geometric art with vibrant colors and patterns",
-    "A photorealistic cat portrait with expressive eyes",
-    "Peaceful beach scene with palm trees and crystal clear water",
-    "Steampunk mechanical owl with brass gears and copper feathers",
-  ];
+  const professionalSubjects: Record<string, string[]> = {
+    "photographic": [
+      "A stunning fashion portrait of a young woman with freckles, highly detailed skin texture, shot on 85mm lens, f/1.8",
+      "Macro photography of a water drop on a lotus leaf, reflecting the morning sun, razor sharp focus",
+      "Street photography of a bustling neon-lit Tokyo intersection in the rain, reflections on wet asphalt, 35mm lens",
+      "Cinematic wide shot of a lone hiker on a snowy mountain ridge, National Geographic style, highly detailed"
+    ],
+    "3d-model": [
+      "A cute isometric tiny room inside a coffee cup, intricate details, octane render, 8k resolution, trending on CGSociety",
+      "A highly detailed mech warrior robot, unreal engine 5 render, metallic textures, ray tracing, cinematic",
+      "A stylized low-poly fantasy village floating in the sky, 3D blender render, ambient occlusion, magical",
+      "Close up of a cute fluffy monster toy, claymation style, tilt shift, macro rendering"
+    ],
+    "anime": [
+      "A magical girl standing on a cliff looking at a floating castle, studio ghibli style, detailed background, masterpiece",
+      "Cyberpunk ninja resting on a rooftop edge, neo-tokyo background, makoto shinkai style, vivid colors, 4k",
+      "A cozy Japanese ramen shop at night, detailed anime background art, lofi aesthetic",
+    ],
+    "digital-art": [
+      "An epic fantasy landscape with a glowing giant tree of life, concept art, trending on artstation, intricate, epic scale",
+      "A futuristic spaceship interior, sci-fi concept art, highly detailed control panels, atmospheric",
+      "A majestic dragon resting on a hoard of gold, digital painting, highly detailed, fantasy illustration",
+    ],
+    "watercolor": [
+      "A serene landscape of mountains and a calm lake, traditional watercolor painting, soft brush strokes",
+      "A vibrant bouquet of spring flowers, loose watercolor style, expressive splatters, artistic, elegant",
+      "A vintage street view of Paris, ink and wash, sketchy lines, architectural drawing style",
+    ],
+    "architecture": [
+      "Modern minimalist concrete villa in a lush pine forest, architectural visualization, clear lines, photorealistic",
+      "A futuristic sustainable skyscraper covered in vertical gardens, glass facade, architectural rendering, unreal engine",
+      "Cozy scandinavian interior living room, wooden furniture, large windows, archviz, extremely detailed",
+    ],
+    "default": [
+      "A majestic dragon flying over misty mountains, epic scale, highly detailed",
+      "A cozy coffee shop interior with plants and bookshelves, inviting atmosphere",
+      "An abstract geometric composition with flowing shapes and intricate patterns, 8k resolution",
+      "A futuristic cyberpunk city with neon lights and flying cars, highly detailed, cinematic"
+    ]
+  };
 
   const handleSurpriseMe = () => {
-    const randomPrompt = randomPrompts[Math.floor(Math.random() * randomPrompts.length)];
-    setPrompt(randomPrompt);
-    // Also randomly set style
-    const randomStyle = styleOptions[Math.floor(Math.random() * styleOptions.length)];
-    if (randomStyle.id !== "none") {
+    // 1. Pick a random style
+    const validStyles = styleOptions.filter(s => s.id !== "none");
+    if (validStyles.length > 0) {
+      const randomStyle = validStyles[Math.floor(Math.random() * validStyles.length)];
       setStyle(randomStyle.id);
+
+      // 2. Generate prompt based on style category
+      let category = "default";
+      if (["photographic", "photorealistic", "portrait", "macro", "fashion", "film", "analog-film", "commercial"].includes(randomStyle.id)) category = "photographic";
+      else if (["3d-model", "3d-render", "isometric", "craft-clay", "low-poly", "origami"].includes(randomStyle.id)) category = "3d-model";
+      else if (["anime", "comic-book", "ukiyo-e", "chinese-style"].includes(randomStyle.id)) category = "anime";
+      else if (["digital-art", "fantasy", "fantasy-art", "cyberpunk", "illustration", "neon-punk", "enhance"].includes(randomStyle.id)) category = "digital-art";
+      else if (["watercolor", "oil-painting", "sketch", "line-art"].includes(randomStyle.id)) category = "watercolor";
+      else if (["architecture", "interior"].includes(randomStyle.id)) category = "architecture";
+
+      const subjects = professionalSubjects[category] || professionalSubjects["default"];
+      const randomSubject = subjects[Math.floor(Math.random() * subjects.length)];
+      setPrompt(randomSubject);
+    } else {
+      const subjects = professionalSubjects["default"];
+      setPrompt(subjects[Math.floor(Math.random() * subjects.length)]);
+    }
+
+    // 3. Pick a random color
+    const validColors = colorOptions.filter(c => c.id !== "none");
+    if (validColors.length > 0) {
+      const randomColor = validColors[Math.floor(Math.random() * validColors.length)];
+      setColor(randomColor.id);
+    }
+
+    // 4. Pick a random lighting
+    const validLighting = lightingOptions.filter(l => l.id !== "none");
+    if (validLighting.length > 0) {
+      const randomLight = validLighting[Math.floor(Math.random() * validLighting.length)];
+      setLighting(randomLight.id);
+    }
+    
+    // 5. Pick a random composition
+    const validComp = compositionOptions.filter(c => c.id !== "none");
+    if (validComp.length > 0) {
+      const randomComp = validComp[Math.floor(Math.random() * validComp.length)];
+      setComposition(randomComp.id);
     }
   };
 
@@ -397,7 +566,10 @@ export default function Home() {
                   {/* Prompt textarea */}
                   <textarea
                     value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
+                    onChange={(e) => {
+                      setPrompt(e.target.value);
+                      lastPromptEditTime.current = Date.now();
+                    }}
                     placeholder={t('generator.promptPlaceholder')}
                     className="flex-1 generator-input focus:outline-none resize-none text-base min-h-[72px] pt-0 px-3 py-2 rounded-xl"
                     rows={3}
@@ -499,22 +671,32 @@ export default function Home() {
                       }
                     }}
                     options={ratioOptions.length > 0 ? ratioOptions : [
-                      { id: "1:1", label: "1:1 (1024×1024)" },
-                      { id: "16:9", label: "16:9 (1344×756)" },
-                      { id: "9:16", label: "9:16 (768×1344)" },
-                      { id: "4:3", label: "4:3 (1152×864)" },
-                      { id: "3:4", label: "3:4 (896×1152)" },
-                      { id: "21:9", label: "21:9 (1536×640)" },
+                      { id: "1:1", label: "1:1", icon: ratioIcons["1:1"] },
+                      { id: "16:9", label: "16:9", icon: ratioIcons["16:9"] },
+                      { id: "9:16", label: "9:16", icon: ratioIcons["9:16"] },
+                      { id: "4:3", label: "4:3", icon: ratioIcons["4:3"] },
+                      { id: "3:4", label: "3:4", icon: ratioIcons["3:4"] },
+                      { id: "21:9", label: "21:9", icon: ratioIcons["21:9"] },
                     ]}
                     placeholder="1:1"
+                    icon={
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                    }
                   />
 
                   {/* Style */}
                   <DropdownSelector
                     value={style}
-                    onChange={setStyle}
+                    onChange={(val) => {
+                      setStyle(val);
+                      lastDropdownEditTime.current = Date.now();
+                    }}
                     options={styleOptions}
-                    placeholder={t('generator.style')}
+                    placeholder="No Style"
                     icon={
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="10"/>
@@ -526,27 +708,36 @@ export default function Home() {
                   {/* Color */}
                   <DropdownSelector
                     value={color}
-                    onChange={setColor}
+                    onChange={(val) => {
+                      setColor(val);
+                      lastDropdownEditTime.current = Date.now();
+                    }}
                     options={colorOptions}
-                    placeholder={t('generator.color')}
+                    placeholder="No Color"
                     icon={<span style={{ color: '#f43f5e' }}>●</span>}
                   />
 
                   {/* Lighting */}
                   <DropdownSelector
                     value={lighting}
-                    onChange={setLighting}
+                    onChange={(val) => {
+                      setLighting(val);
+                      lastDropdownEditTime.current = Date.now();
+                    }}
                     options={lightingOptions}
-                    placeholder={t('generator.lighting')}
+                    placeholder="No Light"
                     icon={<span style={{ color: '#f43f5e' }}>☀</span>}
                   />
 
                   {/* Composition */}
                   <DropdownSelector
                     value={composition}
-                    onChange={setComposition}
+                    onChange={(val) => {
+                      setComposition(val);
+                      lastDropdownEditTime.current = Date.now();
+                    }}
                     options={compositionOptions}
-                    placeholder={t('generator.composition')}
+                    placeholder="No Composition"
                     icon={<span style={{ color: '#f43f5e' }}>▦</span>}
                   />
                 </div>
@@ -556,9 +747,15 @@ export default function Home() {
                   {/* Clear */}
                   <button
                     type="button"
-                    onClick={() => setPrompt("")}
+                    onClick={() => {
+                      setPrompt("");
+                      setStyle("none");
+                      setColor("none");
+                      setLighting("none");
+                      setComposition("none");
+                    }}
                     className="px-4 h-10 text-sm font-medium rounded-full transition-colors disabled:opacity-50 generator-button"
-                    disabled={!prompt}
+                    disabled={!prompt && style === "none" && color === "none" && lighting === "none" && composition === "none"}
                   >
                     {t('generator.clear')}
                   </button>
@@ -574,23 +771,42 @@ export default function Home() {
 
                   {/* Model */}
                   <DropdownSelector
-                    value="basic"
-                    onChange={() => {}}
+                    value={model}
+                    onChange={(val) => {
+                      if (val) {
+                        if ((val === 'max' || val === 'ultra') && (!user || user.tier === 'free')) {
+                          alert(t('generator.upgradeRequired') || 'This model requires a premium plan. Please upgrade.');
+                          // Could also show a modal or redirect
+                          return;
+                        }
+                        setModel(val);
+                      }
+                    }}
                     options={[
-                      { id: "basic", label: "Basic" },
-                      { id: "pro", label: "Pro" },
+                      { id: "basic", label: "LavieAI Basic(0+ credits)" },
+                      { id: "pro", label: "LavieAI Pro(6+ credits)" },
+                      { id: "max", label: "LavieAI Max(120+ credits)" },
+                      { id: "ultra", label: "LavieAI ultra(160+ credits)" },
                     ]}
-                    placeholder="Basic"
+                    placeholder="LavieAI Basic(0+ credits)"
+                    hideClearOption={true}
                   />
 
                   {/* Fast Mode */}
                   <button
                     type="button"
-                    onClick={() => setFastMode(!fastMode)}
-                    className="relative w-10 h-5 rounded-full p-0.5 transition-colors duration-150"
+                    disabled={!user}
+                    onClick={() => {
+                      if (!user) {
+                        alert(t('generator.loginRequiredForFastMode') || 'Please login to use Fast Mode.');
+                        return;
+                      }
+                      setFastMode(!fastMode);
+                    }}
+                    className={`relative w-10 h-5 rounded-full p-0.5 transition-colors duration-150 ${!user ? 'opacity-50 cursor-not-allowed' : ''}`}
                     style={{ background: fastMode ? 'linear-gradient(90deg, #7c3aed, #f43f5e, #f59e0b)' : 'var(--gen-button-bg)' }}
                   >
-                    <span className={`block w-4 h-4 rounded-full shadow transition-transform duration-150`} style={{ background: fastMode ? '#fff' : 'var(--gen-text-muted)' }} />
+                    <span className={`block w-4 h-4 rounded-full shadow transition-transform duration-150 ${fastMode ? 'translate-x-5' : ''}`} style={{ background: fastMode ? '#fff' : 'var(--gen-text-muted)' }} />
                   </button>
                   <span className="text-sm generator-text-muted">{t('generator.fastMode')}</span>
 

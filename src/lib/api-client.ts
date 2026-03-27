@@ -20,6 +20,17 @@ async function getFingerprint(): Promise<string> {
   return fpPromise;
 }
 
+async function fileToDataUrl(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return `data:${file.type || 'application/octet-stream'};base64,${btoa(binary)}`;
+}
+
 interface User {
   id: string;
   email: string;
@@ -29,6 +40,7 @@ interface User {
   credits: number;
   subscription_expire?: number;
   created_at?: number;
+  is_public_default?: number;
 }
 
 interface Task {
@@ -46,7 +58,8 @@ interface GenerationParams {
   negative_prompt?: string;
   style?: string;
   resolution?: [number, number];
-  model?: 'basic' | 'pro' | 'ultra';
+  model?: string;
+  fast_mode?: boolean;
 }
 
 interface SubscriptionPlan {
@@ -91,6 +104,7 @@ export const authApi = {
         credits: u.credits ?? 0,
         subscription_expire: u.subscription_expire,
         created_at: u.created_at,
+        is_public_default: u.is_public_default,
       };
     } catch {
       return null;
@@ -116,6 +130,7 @@ export const generateApi = {
         width: params.resolution?.[0] || 1024,
         height: params.resolution?.[1] || 1024,
         model: params.model || 'basic',
+        fast_mode: params.fast_mode,
       }),
     });
     if (!res.ok) {
@@ -143,25 +158,44 @@ export const generateApi = {
 
   imageToImage: async (params: GenerationParams & { image: File }): Promise<Task> => {
     const fingerprint = await getFingerprint();
-    const formData = new FormData();
-    formData.append('prompt', params.prompt);
-    formData.append('negative_prompt', params.negative_prompt || '');
-    formData.append('style', params.style || '');
-    formData.append('image', params.image);
-    formData.append('width', String(params.resolution?.[0] || 1024));
-    formData.append('height', String(params.resolution?.[1] || 1024));
+    const image_base64 = await fileToDataUrl(params.image);
 
     const res = await fetch(`${API_BASE}/api/generate/image-to-image`, {
       method: 'POST',
-      body: formData,
       credentials: 'include',
-      headers: fingerprint ? { 'X-Fingerprint': fingerprint } : undefined,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Fingerprint': fingerprint,
+      },
+      body: JSON.stringify({
+        prompt: params.prompt,
+        style: params.style,
+        strength: 0.5,
+        model: params.model || 'basic',
+        image_base64,
+      }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Generation failed' }));
-      throw new Error(err.error || 'Generation failed');
+      const err = await res.json().catch(() => ({ error: { message: 'Generation failed' } }));
+      const msg = typeof err.error === 'string'
+        ? err.error
+        : err.error?.message || 'Generation failed';
+      throw new Error(msg);
     }
-    return res.json();
+    const raw = await res.json();
+    if (!raw.success || !raw.data) {
+      const msg = typeof raw.error === 'string'
+        ? raw.error
+        : raw.error?.message || 'Generation failed';
+      throw new Error(msg);
+    }
+    return {
+      id: raw.data.workId,
+      prompt: params.prompt,
+      tool_type: 'image-to-image' as const,
+      status: raw.data.status as Task['status'],
+      created_at: Date.now() / 1000,
+    };
   },
 
   getStatus: async (taskId: string): Promise<Task> => {
@@ -225,6 +259,34 @@ export const userApi = {
       return data.success ? data.data : [];
     } catch {
       return [];
+    }
+  },
+
+  updatePublicDefault: async (isPublicDefault: number): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/user/public-default`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ is_public_default: isPublicDefault }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  updateWorksRecommended: async (workIds: string[], isRecommended: number): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/user/works/recommended`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ work_ids: workIds, is_recommended: isRecommended }),
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
   },
 };
