@@ -62,13 +62,13 @@ const styleEmojis: Record<string, string> = {
 
 function formatTimeAgo(timestamp: number, locale: string): string {
   const seconds = Math.floor(Date.now() / 1000 - timestamp);
-  if (seconds < 60) return locale === "zh" ? "刚刚" : "just now";
+  if (seconds < 60) return locale === "es" ? "ahora" : "just now";
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return locale === "zh" ? `${minutes}分钟前` : `${minutes}m ago`;
+  if (minutes < 60) return locale === "es" ? `hace ${minutes} min` : `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return locale === "zh" ? `${hours}小时前` : `${hours}h ago`;
+  if (hours < 24) return locale === "es" ? `hace ${hours} h` : `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  return locale === "zh" ? `${days}天前` : `${days}d ago`;
+  return locale === "es" ? `hace ${days} d` : `${days}d ago`;
 }
 
 export function GalleryClient({
@@ -208,14 +208,14 @@ export function GalleryClient({
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      const safeName = prompt.slice(0, 30).replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '_').toLowerCase();
+      const safeName = prompt.slice(0, 30).replace(/[^a-z0-9]/gi, '_').toLowerCase();
       a.download = `lavie_${safeName || 'image'}.png`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(blobUrl);
       document.body.removeChild(a);
     } catch {
-      alert(locale === "zh" ? "下载失败，可能是由于跨域限制或链接已失效" : "Download failed, possibly due to cross-origin restrictions or invalid link");
+      alert(locale === "es" ? "Error al descargar, posiblemente debido a restricciones de origen o enlace caducado" : "Download failed, possibly due to cross-origin restrictions or invalid link");
     }
   };
 

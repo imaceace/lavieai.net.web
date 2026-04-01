@@ -2,6 +2,7 @@
 
 import { Link } from "@/routing";
 import { useTranslations } from "next-intl";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useState, useEffect, useRef } from "react";
 import { useUserStore } from "@/stores/userStore";
 import { authApi } from "@/lib/api-client";
@@ -167,6 +168,7 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-4">
+            <LocaleSwitcher />
             <button
               onClick={toggleTheme}
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all"

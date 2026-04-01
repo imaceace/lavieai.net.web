@@ -72,10 +72,13 @@
       "clear": "Leeren",
       "random": "Lavie Magie",
       "fastMode": "Schnell",
+      "loginRequiredTitle": "Anmeldung erforderlich",
+      "loginRequiredForFastMode": "Bitte melden Sie sich bei Google an, um den Schnellmodus zu nutzen und eine 5x schnellere Generierungsgeschwindigkeit zu genießen.",
       "generate": "Generieren",
       "generating": "Generiert...",
       "notEnoughCredits": "Nicht genug Credits. Du benötigst {cost} Credits zum Generieren.",
-      "generationFailed": "Generierung fehlgeschlagen. Bitte versuche es erneut."
+      "generationFailed": "Generierung fehlgeschlagen. Bitte versuche es erneut.",
+      "upgradeRequired": "Dieses Modell erfordert einen Premium-Plan. Bitte upgraden Sie."
     },
     "results": {
       "title": "Generiertes Bild",

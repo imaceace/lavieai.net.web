@@ -38,7 +38,7 @@ export default async function LocaleLayout({
   params: Promise<{ locale?: string }>;
 }) {
   const { locale } = await params;
-  const resolvedLocale = locale && routing.locales.includes(locale as "en" | "zh" | "fr" | "it" | "de") 
+  const resolvedLocale = locale && routing.locales.includes(locale as "en" | "es" | "fr" | "it" | "de") 
     ? locale 
     : routing.defaultLocale;
 

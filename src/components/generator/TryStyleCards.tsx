@@ -84,9 +84,9 @@ export function TryStyleCards({ onSelectStyle }: TryStyleCardsProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-indigo-600" />
-          <h3 className="font-semibold">Try a Style</h3>
-          <span className="text-sm text-gray-500">Click to create</span>
+          <Sparkles className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
+          <h3 className="font-semibold" style={{ color: 'var(--gen-text)' }}>Try a Style</h3>
+          <span className="text-sm" style={{ color: 'var(--gen-text-muted)' }}>Click to create</span>
         </div>
       </div>
 
@@ -98,8 +98,8 @@ export function TryStyleCards({ onSelectStyle }: TryStyleCardsProps) {
             onClick={() => setActiveCategory(cat.id)}
             className={`px-4 py-1.5 text-sm rounded-full transition-colors ${
               activeCategory === cat.id
-                ? "bg-indigo-100 text-indigo-700 font-medium"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 font-medium"
+                : "bg-[var(--gen-button-bg)] text-[var(--gen-text-muted)] hover:bg-[var(--gen-button-hover)]"
             }`}
           >
             {cat.label}
@@ -113,10 +113,11 @@ export function TryStyleCards({ onSelectStyle }: TryStyleCardsProps) {
           <button
             key={style.id}
             onClick={() => onSelectStyle(style.id, style.examplePrompt)}
-            className="group relative bg-white rounded-xl border-2 border-gray-100 hover:border-indigo-300 transition-all p-3 text-center hover:shadow-lg hover:-translate-y-1"
+            className="group relative bg-[var(--gen-bg)] rounded-xl border-2 border-[var(--gen-border)] hover:border-indigo-300 dark:hover:border-indigo-500 transition-all p-3 text-center hover:shadow-lg hover:-translate-y-1"
           >
             <span className="text-3xl mb-1 block">{style.icon}</span>
-            <span className="text-xs font-medium text-gray-700 group-hover:text-indigo-600 transition-colors line-clamp-1">
+            <span className="text-xs font-medium group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1"
+              style={{ color: 'var(--gen-text)' }}>
               {style.name}
             </span>
           </button>

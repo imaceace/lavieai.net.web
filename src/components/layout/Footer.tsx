@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useTranslations } from "next-intl";
 
 const footerLinks = [
@@ -43,9 +42,6 @@ export function Footer() {
                   {link.label}
                 </Link>
               ))}
-            </div>
-            <div className="flex items-center gap-4">
-              <LocaleSwitcher />
             </div>
           </nav>
         </div>

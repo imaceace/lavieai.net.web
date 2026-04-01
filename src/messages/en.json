@@ -72,10 +72,13 @@
       "clear": "Clear",
       "random": "Lavie Magic",
       "fastMode": "Fast",
+      "loginRequiredTitle": "Login Required",
+      "loginRequiredForFastMode": "Please login to Google to use Fast Mode and enjoy 5x faster generation speed.",
       "generate": "Generate",
       "generating": "Generating...",
       "notEnoughCredits": "Not enough credits. You need {cost} credits to generate.",
-      "generationFailed": "Generation failed. Please try again."
+      "generationFailed": "Generation failed. Please try again.",
+      "upgradeRequired": "This model requires a premium plan. Please upgrade."
     },
     "results": {
       "title": "Generated Image",

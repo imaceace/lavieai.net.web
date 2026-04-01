@@ -1,0 +1,240 @@
+{
+  "nav": {
+    "gallery": "Galería",
+    "pricing": "Precios",
+    "profile": "Perfil",
+    "login": "Iniciar sesión",
+    "signOut": "Cerrar sesión",
+    "upgradePlan": "Mejorar Plan"
+  },
+  "gallery": {
+    "badge": "Galería de Inspiración",
+    "title": "Explora el Mundo del Arte IA",
+    "description": "Cada obra es un encuentro entre la imaginación y los algoritmos. Descubre inspiración infinita aquí.",
+    "searchPlaceholder": "Buscar por palabras clave o estilo...",
+    "selectStyle": "Seleccionar Estilo",
+    "allStyles": "✨ Todos los Estilos",
+    "popular": "Popular",
+    "loading": "Cargando obras de arte...",
+    "noResults": "No se encontraron obras de arte coincidentes",
+    "noResultsHint": "Prueba con una palabra clave diferente",
+    "viewDetails": "Ver Detalles",
+    "generateSimilar": "Generar Similar",
+    "generate": "Generar",
+    "loadMore": "Cargando más...",
+    "endOfList": "— Fin de la Galería —",
+    "artworkDetails": "Detalles de la Obra",
+    "prompt": "Indicación",
+    "copyPrompt": "Copiar Indicación",
+    "style": "Estilo",
+    "creator": "Creador",
+    "download": "Descargar",
+    "share": "Compartir",
+    "backToGallery": "Volver a la Galería",
+    "workNotFound": "Obra no encontrada",
+    "workNotFoundDesc": "La obra de arte que buscas no existe.",
+    "negativePrompt": "Indicación Negativa",
+    "details": "Detalles",
+    "useCase": "Caso de Uso",
+    "created": "Creado",
+    "size": "Tamaño",
+    "createSimilar": "Crear Similar",
+    "loadingWork": "Cargando obra..."
+  },
+  "common": {
+    "credits": "créditos",
+    "daily": "Diario",
+    "claim": "Reclamar",
+    "pts": "pts"
+  },
+  "home": {
+    "hero": {
+      "subtitle": "✨ Crea imágenes impresionantes en segundos",
+      "description": "Suéñalo. Créalo. Compártelo.",
+      "badges": {
+        "free": "100% Gratis",
+        "noLogin": "No se requiere inicio de sesión",
+        "fast": "Rápido como el rayo",
+        "unlimited": "Generaciones ilimitadas"
+      }
+    },
+    "generator": {
+      "title": "Generador de Imágenes IA",
+      "imageUpload": "Imagen",
+      "promptPlaceholder": "Describe la imagen que quieres generar...",
+      "negativePrompt": "Indicación negativa",
+      "negativePromptPlaceholder": "Qué evitar...",
+      "ratio": "Relación",
+      "style": "Sin Estilo",
+      "color": "Color",
+      "lighting": "Luz",
+      "composition": "Composición",
+      "clear": "Limpiar",
+      "random": "Magia Lavie",
+      "fastMode": "Rápido",
+      "loginRequiredTitle": "Inicio de sesión requerido",
+      "loginRequiredForFastMode": "Inicie sesión en Google para usar el Modo rápido y disfrutar de una generación 4 veces más rápida.",
+      "generate": "Generar",
+      "generating": "Generando...",
+      "notEnoughCredits": "No hay suficientes créditos. Necesitas {cost} créditos para generar.",
+      "generationFailed": "Error al generar. Por favor, inténtalo de nuevo.",
+      "upgradeRequired": "Este modelo requiere un plan premium. Por favor, mejora tu plan."
+    },
+    "results": {
+      "title": "Imagen Generada",
+      "freePlan": "Estás usando el Plan Gratis",
+      "upgradePrompt": "Mejora a Premium para una velocidad 5 veces más rápida, mejor calidad y experiencia sin anuncios",
+      "upgradeBtn": "Mejorar Ahora"
+    },
+    "features": {
+      "title": "Por qué elegir Lavie AI",
+      "free": {
+        "title": "Creación sin coste",
+        "desc": "El primer generador de imágenes IA del mundo completamente gratis. Sin cargos ocultos, sin suscripciones requeridas."
+      },
+      "quality": {
+        "title": "Calidad de vanguardia",
+        "desc": "El enrutamiento inteligente selecciona el modelo óptimo para tus indicaciones, asegurando una calidad de imagen excepcional."
+      },
+      "understanding": {
+        "title": "Comprensión avanzada de texto",
+        "desc": "Interpreta con precisión indicaciones complejas con múltiples sujetos, estilos y descripciones."
+      },
+      "speed": {
+        "title": "Generación ultrarrápida",
+        "desc": "El canal de inferencia optimizado ofrece resultados en segundos, no minutos."
+      },
+      "privacy": {
+        "title": "Privacidad mejorada",
+        "desc": "Política de retención de datos cero. Tus indicaciones nunca se almacenan ni se utilizan para entrenamiento."
+      },
+      "styles": {
+        "title": "Soporte multi-estilo",
+        "desc": "Desde fotorrealista hasta anime, desde pintura al óleo hasta cyberpunk — 32 estilos para explorar."
+      }
+    },
+    "testimonials": {
+      "title": "Qué dicen nuestros usuarios sobre Lavie AI",
+      "t1": { "text": "¡Absolutamente increíble! La calidad de la imagen es asombrosa y es completamente gratis. He probado muchos generadores de IA, pero este es con diferencia el mejor.", "name": "Sarah Chen", "role": "Artista Digital" },
+      "t2": { "text": "La variedad de estilos es excepcional. Desde anime hasta fotorrealista, lo maneja todo perfectamente. Mi herramienta de referencia para proyectos creativos.", "name": "Marcus Webb", "role": "Desarrollador de Juegos" },
+      "t3": { "text": "¡Sin inicio de sesión y completamente gratis! Perfecto para experimentos rápidos y lluvia de ideas. La velocidad de generación es impresionante.", "name": "Emily Park", "role": "Gerente de Marketing" },
+      "t4": { "text": "Lavie AI transformó mi flujo de trabajo. La interfaz es increíblemente intuitiva y los resultados son impresionantes cada vez.", "name": "David Kim", "role": "Diseñador Gráfico" },
+      "t5": { "text": "No puedo creer que esto sea gratis. La adherencia a las indicaciones es perfecta, capturando incluso los detalles más pequeños que especifico.", "name": "Laura Martinez", "role": "Ilustradora" },
+      "t6": { "text": "¡Rápido como el rayo! Generé una docena de variaciones para mi campaña publicitaria en menos de un minuto.", "name": "James Wilson", "role": "Creador de Contenido" },
+      "t7": { "text": "El modelo de estilo anime es impresionante. Captura perfectamente la estética que buscaba.", "name": "Yuki Tanaka", "role": "Artista Manga" },
+      "t8": { "text": "Finalmente, un generador que no oculta sus mejores funciones tras un muro de pago. Lavie AI es un cambio de juego.", "name": "Alex Johnson", "role": "Freelancer" },
+      "t9": { "text": "Los controles de iluminación y composición son muy fáciles de usar. Muy recomendado para arte conceptual.", "name": "Sophie Brown", "role": "Artista Conceptual" },
+      "t10": { "text": "Uso Lavie AI todos los días para mis publicaciones de blog. La calidad visual hace que mis artículos destaquen.", "name": "Michael Chang", "role": "Bloguero" },
+      "t11": { "text": "Una interfaz tan limpia y moderna. Es un placer usarla en comparación con otras herramientas desordenadas.", "name": "Emma Davis", "role": "Diseñadora UI/UX" },
+      "t12": { "text": "El estilo de renderizado 3D se ve increíblemente profesional. Me ahorró horas de tiempo de modelado.", "name": "Oliver Smith", "role": "Artista 3D" },
+      "t13": { "text": "¡Me encanta la función 'Sorpréndeme'! Me da ideas increíbles cuando tengo un bloqueo creativo.", "name": "Chloe White", "role": "Directora Creativa" },
+      "t14": { "text": "Velocidad y calidad inigualables. Esto es ahora una parte esencial de mi caja de herramientas de diseño.", "name": "Daniel Taylor", "role": "Director de Arte" },
+      "t15": { "text": "La función de indicación negativa funciona perfectamente, dándome exactamente lo que quiero sin complicaciones.", "name": "Mia Anderson", "role": "Fotógrafa" },
+      "t16": { "text": "Hermosos degradados, UX suave y generación de IA de primer nivel. ¿Qué más se puede pedir?", "name": "Lucas Thomas", "role": "Desarrollador Web" },
+      "t17": { "text": "Maneja indicaciones arquitectónicas complejas mejor que las alternativas de pago. Realmente impresionante.", "name": "Isabella Garcia", "role": "Arquitecta" },
+      "t18": { "text": "Un recurso fantástico para el guion gráfico. Da vida a mis guiones al instante.", "name": "William Martin", "role": "Cineasta" }
+    },
+    "useCases": {
+      "title": "Lavie AI diseñada para cada necesidad creativa",
+      "designers": {
+        "title": "Para Diseñadores",
+        "desc": "Genera maquetas de UI, iconos y activos web al instante para acelerar tu proceso de diseño."
+      },
+      "marketers": {
+        "title": "Para Marketers",
+        "desc": "Crea publicaciones atractivas en redes sociales, creatividades publicitarias y banners de blog que conviertan."
+      },
+      "creators": {
+        "title": "Para Creadores de Contenido",
+        "desc": "Da vida a tus historias con impresionantes portadas de libros, conceptos de personajes e ilustraciones."
+      },
+      "ecommerce": {
+        "title": "Para Comercio Electrónico",
+        "desc": "Diseña fondos de productos profesionales y maquetas de estilo de vida sin una sesión de fotos."
+      },
+      "gameDev": {
+        "title": "Para Desarrolladores de Juegos",
+        "desc": "Genera arte conceptual, sprites de personajes y activos ambientales para tu próximo juego indie."
+      },
+      "educators": {
+        "title": "Para Educadores",
+        "desc": "Crea ayudas visuales y diagramas atractivos para que los materiales de aprendizaje sean más interactivos."
+      }
+    },
+    "howItWorks": {
+      "title": "Crea arte en 3 simples pasos",
+      "step1": {
+        "title": "1. Ingresa tu indicación",
+        "desc": "Describe lo que quieres ver. Cuantos más detalles, mejor."
+      },
+      "step2": {
+        "title": "2. Elige un estilo",
+        "desc": "Selecciona entre más de 30 estilos artísticos, o deja que la IA decida."
+      },
+      "step3": {
+        "title": "3. Genera y Descarga",
+        "desc": "Obtén tu imagen de alta calidad en segundos, lista para usar."
+      }
+    },
+    "cta": {
+      "title": "¿Listo para crear tu obra maestra?",
+      "desc": "Libera tu creatividad y da vida a tu imaginación con Lavie AI.",
+      "button": "Probar Lavie AI"
+    },
+    "seoText": "Lavie AI es un potente generador de imágenes IA gratuito que te permite transformar texto en arte visual impresionante en segundos. Ya sea que necesites imágenes fotorrealistas, ilustraciones de anime, renders 3D o arte digital, nuestro generador de texto a imagen ofrece una calidad excepcional sin necesidad de registrarse. Crea imágenes, fondos y activos de IA ilimitados para tus proyectos creativos hoy mismo.",
+    "faq": {
+      "title": "Preguntas Frecuentes",
+      "q1": {
+        "q": "¿Es Lavie AI realmente gratis?",
+        "a": "¡Sí! Lavie AI es completamente gratis. Ofrecemos créditos diarios gratuitos para que puedas generar imágenes sin ningún pago. No se requiere tarjeta de crédito."
+      },
+      "q2": {
+        "q": "¿Necesito crear una cuenta?",
+        "a": "¡No se requiere inicio de sesión! Puedes empezar a generar imágenes inmediatamente. Sin embargo, crear una cuenta te permite guardar tu historial de generación y acceder a más funciones."
+      },
+      "q3": {
+        "q": "¿Qué estilos de imagen están disponibles?",
+        "a": "Ofrecemos 32 estilos artísticos diferentes, incluyendo Fotorrealista, Anime, Pintura al Óleo, Acuarela, Boceto, Render 3D, Cyberpunk, Fantasía y muchos más. Se añaden nuevos estilos regularmente."
+      },
+      "q4": {
+        "q": "¿Qué tan rápido puedo generar una imagen?",
+        "a": "Con el Modo Rápido activado, la mayoría de las imágenes se generan en solo unos segundos. La generación estándar suele tardar entre 10 y 30 segundos, dependiendo de la complejidad y la carga del servidor."
+      },
+      "q5": {
+        "q": "¿Puedo usar las imágenes generadas comercialmente?",
+        "a": "¡Sí! Las imágenes que generas con Lavie AI se pueden usar para fines personales y comerciales. Conservas la propiedad total de las imágenes que creas."
+      },
+      "q6": {
+        "q": "¿Mis datos se mantienen privados?",
+        "a": "Absolutamente. Tenemos una política de retención de datos cero. Tus indicaciones nunca se almacenan en nuestros servidores después de que se completa la generación y nunca se usan para entrenar modelos de IA."
+      }
+    }
+  },
+  "blog": {
+    "title": "Blog y Guías de Lavie AI",
+    "description": "Descubre consejos, tutoriales e inspiración para crear arte IA impresionante.",
+    "readMore": "Leer Artículo",
+    "backToBlog": "Volver a todas las publicaciones",
+    "relatedPosts": "También te puede interesar",
+    "posts": {
+      "anime": {
+        "title": "La Guía Definitiva para Indicaciones de Arte IA de Anime en 2026",
+        "excerpt": "Domina el arte de generar imágenes impresionantes de estilo anime con estas estructuras de indicaciones y palabras clave probadas.",
+        "content": "<p>Crear la ilustración de anime perfecta requiere más que simplemente escribir 'estilo anime'. Para obtener resultados consistentes y de alta calidad, debes entender cómo la IA interpreta palabras clave estilísticas específicas.</p><h3>1. Comienza con el Medio y el Estilo</h3><p>Comienza siempre tu indicación definiendo el estilo visual exacto. Usa combinaciones como <em>'obra maestra, mejor calidad, ilustración de anime ultra detallada, estilo studio ghibli, makoto shinkai'</em> para establecer un estándar alto de calidad.</p><h3>2. Descripción del Sujeto</h3><p>Sé específico sobre tu personaje. Describe su color de pelo, forma de ojos, ropa y pose. Por ejemplo: <em>'1girl, pelo plateado fluyendo al viento, ojos rojos brillantes, vistiendo una chaqueta cyberpunk futurista, pose dinámica, mirando al espectador'</em>.</p><h3>3. Iluminación y Entorno</h3><p>La iluminación define una imagen. Añade palabras clave como <em>'iluminación cinematográfica, iluminación de borde, destello de lente, profundidad de campo'</em>. Para el fondo, sé igual de descriptivo: <em>'parada en una calle de Tokio iluminada con neón, charcos de lluvia reflejando luces, fondo de ciudad cyberpunk'</em>.</p><p><strong>Consejo Pro:</strong> Usa la indicación negativa para evitar artefactos comunes de IA como 'mala anatomía, dedos extra, extremidades faltantes, borroso'.</p>"
+      },
+      "ecommerce": {
+        "title": "Cómo Generar Fondos Profesionales de Productos para Comercio Electrónico",
+        "excerpt": "Ahorra miles en fotografía de productos usando IA para generar fondos realistas e impresionantes para tus productos.",
+        "content": "<p>Las imágenes de productos de alta calidad son cruciales para las tasas de conversión del comercio electrónico. Con Lavie AI, puedes generar variaciones infinitas de fondos de estilo de vida y de estudio sin alquilar un estudio.</p><h3>La Configuración</h3><p>Al generar fondos, quieres que el foco permanezca donde eventualmente se colocará tu producto. Usa indicaciones que creen 'pedestales' naturales o espacios despejados.</p><h3>Indicaciones de Estudio</h3><p>Prueba esto para un aspecto limpio: <em>'Fondo de fotografía de producto minimalista, podio de mármol blanco, fondo rosa pastel suave, luz solar matutina elegante, sombras nítidas, 8k, fotorrealista'</em>.</p><h3>Indicaciones de Estilo de Vida</h3><p>Para un entorno más natural: <em>'Fondo de sala de estar moderna y acogedora, profundidad de campo borrosa, mesa de café de madera enfocada, luz solar entrando por la ventana, plantas de interior, iluminación suave y cálida, fotografía de interiores profesional'</em>.</p><h3>Integración</h3><p>Una vez generado, usa tu herramienta de edición de fotos favorita para eliminar el fondo de tu producto real y colocarlo en la escena generada por IA. La iluminación y las sombras coincidentes harán que parezca una sesión de fotos real.</p>"
+      },
+      "negative": {
+        "title": "Dominando las Indicaciones Negativas: Qué Son y Cómo Usarlas",
+        "excerpt": "A veces, decirle a la IA qué NO dibujar es más importante que decirle qué dibujar. Aprende los secretos de las indicaciones negativas.",
+        "content": "<p>Una indicación negativa es un conjunto de instrucciones que le dice al generador de imágenes IA exactamente qué elementos, estilos o artefactos debe evitar incluir en el resultado final. Actúa como un filtro, limpiando el proceso de generación.</p><h3>¿Por qué usar indicaciones negativas?</h3><p>Los modelos de IA se entrenan con vastos conjuntos de datos que incluyen tanto obras maestras como imágenes mal dibujadas. Al usar indicaciones negativas, obligas a la IA a alejarse de los 'malos' datos.</p><h3>La Fórmula Esencial de Indicación Negativa</h3><p>Para casi cada generación, especialmente sujetos humanos, deberías incluir una indicación negativa base como esta:<br/><em>'feo, duplicado, mórbido, mutilado, dedos extra, manos mutadas, manos mal dibujadas, cara mal dibujada, mutación, deforme, borroso, mala anatomía, malas proporciones, extremidades extra, cara clonada, desfigurado, proporciones asquerosas'</em></p><h3>Negativos Específicos de Estilo</h3><p>Si quieres una imagen fotorrealista, usa indicaciones negativas para evitar estilos artísticos: <em>'ilustración, pintura, dibujo animado, anime, renderizado 3D, boceto, dibujo, marca de agua, firma'</em>.</p><p>Experimentar con indicaciones negativas es tan importante como ajustar tu indicación principal. No tengas miedo de añadir cosas específicas que quieras eliminar, como <em>'coches rojos, texto, nubes'</em> si siguen apareciendo sin ser deseados en tus generaciones.</p>"
+      }
+    }
+  },
+  "footer": {
+    "tagline": "Generador de Imágenes IA Gratis"
+  }
+}

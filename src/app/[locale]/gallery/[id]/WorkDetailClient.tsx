@@ -66,7 +66,7 @@ const styleEmojis: Record<string, string> = {
 };
 
 function formatDate(timestamp: number, locale: string): string {
-  return new Date(timestamp * 1000).toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", {
+  return new Date(timestamp * 1000).toLocaleDateString(locale === "es" ? "es-ES" : "en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -161,14 +161,14 @@ export function WorkDetailClient({
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      const safeName = item.prompt.slice(0, 30).replace(/[^a-z0-9\u4e00-\u9fa5]/gi, "_").toLowerCase();
+      const safeName = item.prompt.slice(0, 30).replace(/[^a-z0-9]/gi, "_").toLowerCase();
       a.download = `lavie_${safeName || "image"}.png`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(blobUrl);
       document.body.removeChild(a);
     } catch {
-      alert(locale === "zh" ? "下载失败" : "Download failed");
+      alert(locale === "es" ? "Descarga fallida" : "Download failed");
     }
   };
 
@@ -182,7 +182,7 @@ export function WorkDetailClient({
       });
     } else {
       navigator.clipboard.writeText(url);
-      alert(locale === "zh" ? "链接已复制到剪贴板！" : "Link copied to clipboard!");
+      alert(locale === "es" ? "¡Enlace copiado al portapapeles!" : "Link copied to clipboard!");
     }
   };
 

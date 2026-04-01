@@ -67,13 +67,13 @@ export function GalleryShowcase({ onUsePrompt, sort }: GalleryShowcaseProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Image className="w-5 h-5 text-indigo-600" />
-          <h3 className="font-semibold">Gallery</h3>
-          <span className="text-sm text-gray-500">See what you can create with Lavie AI</span>
+          <Image className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
+          <h3 className="font-semibold" style={{ color: 'var(--gen-text)' }}>Gallery</h3>
+          <span className="text-sm" style={{ color: 'var(--gen-text-muted)' }}>See what you can create with Lavie AI</span>
         </div>
         <Link
           href="/gallery"
-          className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+          className="text-sm text-indigo-500 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-medium flex items-center gap-1"
         >
           View More
           <span>→</span>
@@ -84,7 +84,7 @@ export function GalleryShowcase({ onUsePrompt, sort }: GalleryShowcaseProps) {
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="bg-gray-200 rounded-xl aspect-square animate-pulse" />
+            <div key={i} className="bg-[var(--gen-button-bg)] rounded-xl aspect-square animate-pulse" />
           ))}
         </div>
       ) : (
@@ -102,7 +102,7 @@ export function GalleryShowcase({ onUsePrompt, sort }: GalleryShowcaseProps) {
               return (
               <div
                 key={item.id}
-                className="group relative bg-gray-100 rounded-xl overflow-hidden cursor-pointer aspect-square"
+                className="group relative bg-[var(--gen-bg)] border border-[var(--gen-border)] rounded-xl overflow-hidden cursor-pointer aspect-square"
                 onClick={() => onUsePrompt(item.prompt)}
               >
                 {imageUrl ? (

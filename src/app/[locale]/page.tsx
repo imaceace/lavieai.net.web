@@ -8,6 +8,7 @@ import {
   GalleryShowcase,
   GenerationResult,
 } from "@/components/generator";
+import { LoginModal } from "@/components/auth/LoginModal";
 import { generateApi, pollTaskStatus, userApi, configApi, authApi } from "@/lib/api-client";
 import Script from "next/script";
 
@@ -96,6 +97,7 @@ export default function Home() {
   // Generator extra state
   const [fastMode, setFastMode] = useState(false);
   const [showNegativePrompt, setShowNegativePrompt] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Track last manual action for "Last Operation Wins" logic
   const lastPromptEditTime = useRef<number>(0);
@@ -496,7 +498,7 @@ export default function Home() {
       <Script id="software-jsonld" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Script id="faq-jsonld" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       {/* Hero Section */}
-      <section className="py-10 md:py-16 px-4">
+      <section className="py-10 md:py-16 px-4" style={{ background: 'var(--gen-bg)' }}>
         <div className="container mx-auto text-center max-w-4xl">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 tracking-tight bg-gradient-to-r from-violet-600 via-rose-500 to-amber-500 bg-clip-text text-transparent">
             Lavie AI Image Generator
@@ -530,7 +532,7 @@ export default function Home() {
       </section>
 
       {/* Generator Section */}
-      <section id="generator" className="pt-6 pb-12 md:pt-8 md:pb-16 px-4">
+      <section id="generator" className="pt-6 pb-12 md:pt-8 md:pb-16 px-4" style={{ background: 'var(--gen-bg)' }}>
         <div className="container mx-auto max-w-5xl">
           {/* Generator Card with gradient border */}
           <div className="p-[2px] rounded-2xl"
@@ -795,15 +797,14 @@ export default function Home() {
                   {/* Fast Mode */}
                   <button
                     type="button"
-                    disabled={!user}
                     onClick={() => {
                       if (!user) {
-                        alert(t('generator.loginRequiredForFastMode') || 'Please login to use Fast Mode.');
+                        setIsLoginModalOpen(true);
                         return;
                       }
                       setFastMode(!fastMode);
                     }}
-                    className={`relative w-10 h-5 rounded-full p-0.5 transition-colors duration-150 ${!user ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className="relative w-10 h-5 rounded-full p-0.5 transition-colors duration-150"
                     style={{ background: fastMode ? 'linear-gradient(90deg, #7c3aed, #f43f5e, #f59e0b)' : 'var(--gen-button-bg)' }}
                   >
                     <span className={`block w-4 h-4 rounded-full shadow transition-transform duration-150 ${fastMode ? 'translate-x-5' : ''}`} style={{ background: fastMode ? '#fff' : 'var(--gen-text-muted)' }} />
@@ -906,7 +907,7 @@ export default function Home() {
       </section>
 
       {/* Try a Style Section */}
-      <section className="py-12 px-4">
+      <section className="py-12 px-4" style={{ background: 'var(--gen-bg)' }}>
         <div className="container mx-auto max-w-6xl">
           <TryStyleCards onSelectStyle={handleSelectStyle} />
         </div>
@@ -1119,7 +1120,7 @@ export default function Home() {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-16 px-4" style={{ background: 'var(--gen-bg)' }}>
+      <section className="py-16 px-4" style={{ background: 'var(--gen-input-bg)' }}>
         <div className="container mx-auto max-w-5xl text-center">
           <h2 className="text-3xl font-bold mb-12" style={{ color: 'var(--gen-text)' }}>{t('howItWorks.title')}</h2>
           <div className="flex flex-col md:flex-row items-center justify-center gap-8 relative">
@@ -1182,13 +1183,13 @@ export default function Home() {
       </section> */}
 
       {/* Testimonials Section */}
-      <section className="py-16 px-4 overflow-hidden relative" style={{ background: 'var(--gen-input-bg)' }}>
+      <section className="py-16 px-4 overflow-hidden relative" style={{ background: 'var(--gen-bg)' }}>
         <div className="container mx-auto max-w-6xl relative">
           <h2 className="text-3xl font-bold text-center mb-10 relative z-10" style={{ color: 'var(--gen-text)' }}>{t('testimonials.title')}</h2>
           
           {/* Top and Bottom gradient masks for the smooth fade effect */}
-          <div className="absolute top-[80px] left-0 right-0 h-24 bg-gradient-to-b from-[var(--gen-input-bg)] to-transparent z-10 pointer-events-none" />
-          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[var(--gen-input-bg)] to-transparent z-10 pointer-events-none" />
+          <div className="absolute top-[80px] left-0 right-0 h-24 bg-gradient-to-b from-[var(--gen-bg)] to-transparent z-10 pointer-events-none" />
+          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[var(--gen-bg)] to-transparent z-10 pointer-events-none" />
 
           {/* Marquee container */}
           <div className="h-[600px] overflow-hidden relative flex gap-6 justify-center">
@@ -1255,7 +1256,7 @@ export default function Home() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-16 px-4" style={{ background: 'var(--gen-bg)' }}>
+      <section className="py-16 px-4" style={{ background: 'var(--gen-input-bg)' }}>
         <div className="container mx-auto max-w-6xl">
           <h2 className="text-3xl font-bold text-center mb-10" style={{ color: 'var(--gen-text)' }}>{t('faq.title')}</h2>
           <div className="grid md:grid-cols-2 gap-4">
@@ -1356,6 +1357,13 @@ export default function Home() {
           </button>
         </div>
       </section>
+
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)} 
+        title={t('generator.loginRequiredTitle')}
+        subtitle={t('generator.loginRequiredForFastMode')}
+      />
     </div>
   );
 }

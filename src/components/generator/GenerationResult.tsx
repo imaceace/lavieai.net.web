@@ -32,7 +32,7 @@ export function GenerationResult({
   return (
     <div className="space-y-4" itemScope itemType="https://schema.org/ImageObject">
       {/* Image preview */}
-      <div className="relative rounded-lg overflow-hidden bg-gray-100">
+      <div className="relative rounded-lg overflow-hidden bg-[var(--gen-input-bg)]">
         <img
           src={imageUrl}
           alt={imageAlt}
@@ -70,8 +70,8 @@ export function GenerationResult({
       </div>
 
       {/* Prompt display */}
-      <div className="bg-gray-50 rounded-lg p-3">
-        <p className="text-sm text-gray-700 line-clamp-2">{prompt}</p>
+      <div className="bg-[var(--gen-input-bg)] rounded-lg p-3">
+        <p className="text-sm line-clamp-2" style={{ color: 'var(--gen-text)' }}>{prompt}</p>
       </div>
 
       {/* Action buttons */}
@@ -79,7 +79,8 @@ export function GenerationResult({
         {onDownload && (
           <button
             onClick={onDownload}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-lg transition-colors bg-[var(--gen-bg)] border-[var(--gen-border)] hover:bg-[var(--gen-button-hover)]"
+            style={{ color: 'var(--gen-text)' }}
           >
             <Download className="w-4 h-4" />
             Download
@@ -88,7 +89,8 @@ export function GenerationResult({
         {onShare && (
           <button
             onClick={onShare}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-lg transition-colors bg-[var(--gen-bg)] border-[var(--gen-border)] hover:bg-[var(--gen-button-hover)]"
+            style={{ color: 'var(--gen-text)' }}
           >
             <Share2 className="w-4 h-4" />
             Share
@@ -97,7 +99,7 @@ export function GenerationResult({
         {onRegenerate && (
           <button
             onClick={onRegenerate}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
           >
             <RotateCcw className="w-4 h-4" />
             Regenerate
@@ -106,7 +108,7 @@ export function GenerationResult({
       </div>
 
       {/* Success message */}
-      <div className="flex items-center gap-2 text-sm text-green-600">
+      <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
         <Check className="w-4 h-4" />
         Generation complete!
       </div>

@@ -72,10 +72,13 @@
       "clear": "Cancella",
       "random": "Magia Lavie",
       "fastMode": "Veloce",
+      "loginRequiredTitle": "Accesso richiesto",
+      "loginRequiredForFastMode": "Accedi a Google per utilizzare la modalità veloce e goderti una velocità di generazione 5 volte superiore.",
       "generate": "Genera",
       "generating": "Generazione in corso...",
       "notEnoughCredits": "Crediti insufficienti. Hai bisogno di {cost} crediti per generare.",
-      "generationFailed": "Generazione fallita. Riprova."
+      "generationFailed": "Generazione fallita. Riprova.",
+      "upgradeRequired": "Questo modello richiede un piano premium. Si prega di eseguire l'aggiornamento."
     },
     "results": {
       "title": "Immagine Generata",

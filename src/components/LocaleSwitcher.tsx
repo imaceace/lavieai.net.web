@@ -35,7 +35,7 @@ export function LocaleSwitcher() {
         className="appearance-none bg-transparent border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 py-1.5 pl-3 pr-8 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer disabled:opacity-50"
       >
         <option value="en">English</option>
-        <option value="zh">简体中文</option>
+        <option value="es">Español</option>
         <option value="fr">Français</option>
         <option value="it">Italiano</option>
         <option value="de">Deutsch</option>
