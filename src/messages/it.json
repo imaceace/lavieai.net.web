@@ -78,7 +78,8 @@
       "generating": "Generazione in corso...",
       "notEnoughCredits": "Crediti insufficienti. Hai bisogno di {cost} crediti per generare.",
       "generationFailed": "Generazione fallita. Riprova.",
-      "upgradeRequired": "Questo modello richiede un piano premium. Si prega di eseguire l'aggiornamento."
+      "upgradeRequiredTitle": "Aggiornamento Richiesto",
+      "upgradeRequired": "Questo modello o risoluzione richiede un piano premium. Si prega di aggiornare per sbloccare più funzioni."
     },
     "results": {
       "title": "Immagine Generata",
@@ -135,30 +136,66 @@
       "t18": { "text": "Una risorsa fantastica per lo storyboarding. Dà vita ai miei script all'istante.", "name": "William Martin", "role": "Regista" }
     },
     "useCases": {
-      "title": "Lavie AI Built for Every Creative Need",
-      "designers": {
-        "title": "For Designers",
-        "desc": "Generate UI mockups, icons, and web assets instantly to accelerate your design process."
+      "title": "Scopri qualcosa di nuovo",
+      "createHolidayCard": {
+        "title": "Crea un biglietto di auguri"
       },
-      "marketers": {
-        "title": "For Marketers",
-        "desc": "Create engaging social media posts, ad creatives, and blog banners that convert."
+      "createAlbumCover": {
+        "title": "Crea la copertina di un album"
       },
-      "creators": {
-        "title": "For Content Creators",
-        "desc": "Bring your stories to life with stunning book covers, character concepts, and illustrations."
+      "redecorateMyRoom": {
+        "title": "Riarreda la mia stanza"
       },
-      "ecommerce": {
-        "title": "For E-commerce",
-        "desc": "Design professional product backgrounds and lifestyle mockups without a photoshoot."
+      "whatWouldILookLikeAsAKPopStar": {
+        "title": "Come sarei se fossi una star del K-Pop?"
       },
-      "gameDev": {
-        "title": "For Game Developers",
-        "desc": "Generate concept art, character sprites, and environmental assets for your next indie game."
+      "styleMe": {
+        "title": "Vestimi"
       },
-      "educators": {
-        "title": "For Educators",
-        "desc": "Create engaging visual aids and diagrams to make learning materials more interactive."
+      "giveUsMatchingOutfit": {
+        "title": "Dacci un outfit abbinato"
+      },
+      "meAsTheGirlWithAPearl": {
+        "title": "Io come La ragazza col turbante"
+      },
+      "createProfessionalProductPhoto": {
+        "title": "Crea una foto di prodotto professionale"
+      },
+      "createProfessionalJobPhoto": {
+        "title": "Crea una foto professionale per il lavoro"
+      },
+      "removePeopleInTheBackground": {
+        "title": "Rimuovi le persone sullo sfondo"
+      },
+      "ghibliStyle": {
+        "title": "Converti in stile Ghibli"
+      },
+      "removeWatermark": {
+        "title": "Rimuovi filigrana"
+      },
+      "removeBackground": {
+        "title": "Rimuovi sfondo"
+      },
+      "turnIntoClaymationStyle": {
+        "title": "Trasforma in stile plastilina"
+      },
+      "sketchToReal": {
+        "title": "Dal disegno alla realtà"
+      },
+      "ps2Retro": {
+        "title": "Stile gioco retrò PS2"
+      },
+      "colorizePhoto": {
+        "title": "Colora foto in bianco e nero"
+      },
+      "cyberpunk": {
+        "title": "Stile Cyberpunk"
+      },
+      "restorePhoto": {
+        "title": "Restaura una vecchia foto"
+      },
+      "keychain": {
+        "title": "Trasforma in un portachiavi"
       }
     },
     "howItWorks": {

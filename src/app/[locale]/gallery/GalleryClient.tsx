@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/useToast";
 import { Search, Copy, Sparkles, X, Download, Share2, Loader2, ChevronDown, Palette, Filter } from "lucide-react";
+
 import { configApi, galleryApi } from "@/lib/api-client";
 
 interface GalleryItem {
@@ -79,6 +81,7 @@ export function GalleryClient({
   locale: string;
 }) {
   const router = useRouter();
+  const { addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [styles, setStyles] = useState<StyleOption[]>([]);
@@ -200,22 +203,92 @@ export function GalleryClient({
     window.location.href = '/';
   };
 
-  const handleDownload = async (url: string, prompt: string) => {
+  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
+  const downloadMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(event.target as Node)) {
+        setIsDownloadMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleDownload = async (url: string, name?: string, format: 'webp' | 'png' | 'jpeg' | 'ico' = 'png') => {
+    setIsDownloadMenuOpen(false);
     try {
       const res = await fetch(url);
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const originalBlob = await res.blob();
+      
+      let finalBlob = originalBlob;
+      const safeName = name?.slice(0, 30).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      let ext = format;
+      
+      if (format !== 'webp' && format !== 'png' && format !== 'jpeg' && format !== 'ico') {
+         // fallback
+      } else {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const imgLoadPromise = new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = window.URL.createObjectURL(originalBlob);
+        });
+        await imgLoadPromise;
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas not supported');
+        ctx.drawImage(img, 0, 0);
+        
+        if (format === 'ico') {
+          const size = Math.min(img.width, img.height, 256);
+          const icoCanvas = document.createElement('canvas');
+          icoCanvas.width = size;
+          icoCanvas.height = size;
+          const icoCtx = icoCanvas.getContext('2d');
+          icoCtx?.drawImage(img, 0, 0, size, size);
+          
+          const pngBlob = await new Promise<Blob>((res) => icoCanvas.toBlob((b) => res(b!), 'image/png'));
+          const pngBuffer = await pngBlob.arrayBuffer();
+          const pngArray = new Uint8Array(pngBuffer);
+          
+          const icoBuffer = new ArrayBuffer(22 + pngArray.length);
+          const view = new DataView(icoBuffer);
+          view.setUint16(0, 0, true);
+          view.setUint16(2, 1, true);
+          view.setUint16(4, 1, true);
+          view.setUint8(6, size === 256 ? 0 : size);
+          view.setUint8(7, size === 256 ? 0 : size);
+          view.setUint8(8, 0);
+          view.setUint8(9, 0);
+          view.setUint16(10, 1, true);
+          view.setUint16(12, 32, true);
+          view.setUint32(14, pngArray.length, true);
+          view.setUint32(18, 22, true);
+          new Uint8Array(icoBuffer, 22).set(pngArray);
+          
+          finalBlob = new Blob([icoBuffer], { type: 'image/x-icon' });
+        } else {
+          finalBlob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), `image/${format}`, 0.95));
+        }
+      }
+
+      const blobUrl = window.URL.createObjectURL(finalBlob);
+      const a = document.createElement('a');
       a.href = blobUrl;
-      const safeName = prompt.slice(0, 30).replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      a.download = `lavie_${safeName || 'image'}.png`;
+      a.download = `lavie_${safeName || 'image'}.${ext}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(blobUrl);
       document.body.removeChild(a);
-    } catch {
-      alert(locale === "es" ? "Error al descargar, posiblemente debido a restricciones de origen o enlace caducado" : "Download failed, possibly due to cross-origin restrictions or invalid link");
+    } catch (err) {
+      console.error('Download failed', err);
+      addToast(locale === 'es' ? 'Descarga fallida' : 'Download failed', 'error');
     }
   };
 
@@ -536,13 +609,44 @@ export function GalleryClient({
                   <span>{translations.generateSimilar}</span>
                 </button>
                 {(selectedItem.result_url || selectedItem.imageUrl) && (
-                  <button
-                    onClick={() => handleDownload(selectedItem.result_url || selectedItem.imageUrl!, selectedItem.prompt)}
-                    className="p-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-                    title={translations.download}
-                  >
-                    <Download className="w-5 h-5 text-gray-600" />
-                  </button>
+                  <div className="relative inline-block text-left" ref={downloadMenuRef}>
+                    <button
+                      onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
+                      className="p-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                      title={translations.download}
+                    >
+                      <Download className="w-5 h-5 text-gray-600" />
+                      <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isDownloadMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isDownloadMenuOpen && (
+                      <div className="absolute bottom-full left-0 mb-2 w-32 rounded-xl shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 z-10 overflow-hidden">
+                        <button
+                          onClick={() => handleDownload(selectedItem.result_url || selectedItem.imageUrl!, selectedItem.prompt, 'webp')}
+                          className="block w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-rose-600 transition-colors text-left font-medium"
+                        >
+                          WebP
+                        </button>
+                        <button
+                          onClick={() => handleDownload(selectedItem.result_url || selectedItem.imageUrl!, selectedItem.prompt, 'png')}
+                          className="block w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-rose-600 transition-colors text-left font-medium"
+                        >
+                          PNG
+                        </button>
+                        <button
+                          onClick={() => handleDownload(selectedItem.result_url || selectedItem.imageUrl!, selectedItem.prompt, 'jpeg')}
+                          className="block w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-rose-600 transition-colors text-left font-medium"
+                        >
+                          JPEG
+                        </button>
+                        <button
+                          onClick={() => handleDownload(selectedItem.result_url || selectedItem.imageUrl!, selectedItem.prompt, 'ico')}
+                          className="block w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-rose-600 transition-colors text-left font-medium"
+                        >
+                          ICO
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
                 <button
                   onClick={() => {

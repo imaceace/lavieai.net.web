@@ -78,7 +78,8 @@
       "generating": "Generating...",
       "notEnoughCredits": "Not enough credits. You need {cost} credits to generate.",
       "generationFailed": "Generation failed. Please try again.",
-      "upgradeRequired": "This model requires a premium plan. Please upgrade."
+      "upgradeRequiredTitle": "Upgrade Required",
+      "upgradeRequired": "This model or resolution requires a premium plan. Please upgrade to unlock more features."
     },
     "results": {
       "title": "Generated Image",
@@ -135,30 +136,66 @@
       "t18": { "text": "A fantastic resource for storyboarding. It brings my scripts to life instantly.", "name": "William Martin", "role": "Filmmaker" }
     },
     "useCases": {
-      "title": "Lavie AI Built for Every Creative Need",
-      "designers": {
-        "title": "For Designers",
-        "desc": "Generate UI mockups, icons, and web assets instantly to accelerate your design process."
+      "title": "Discover something new",
+      "createHolidayCard": {
+        "title": "Create a holiday card"
       },
-      "marketers": {
-        "title": "For Marketers",
-        "desc": "Create engaging social media posts, ad creatives, and blog banners that convert."
+      "createAlbumCover": {
+        "title": "Create an album cover"
       },
-      "creators": {
-        "title": "For Content Creators",
-        "desc": "Bring your stories to life with stunning book covers, character concepts, and illustrations."
+      "redecorateMyRoom": {
+        "title": "Redecorate my room"
       },
-      "ecommerce": {
-        "title": "For E-commerce",
-        "desc": "Design professional product backgrounds and lifestyle mockups without a photoshoot."
+      "whatWouldILookLikeAsAKPopStar": {
+        "title": "What would I look like as a K-Pop star?"
       },
-      "gameDev": {
-        "title": "For Game Developers",
-        "desc": "Generate concept art, character sprites, and environmental assets for your next indie game."
+      "styleMe": {
+        "title": "Style me"
       },
-      "educators": {
-        "title": "For Educators",
-        "desc": "Create engaging visual aids and diagrams to make learning materials more interactive."
+      "giveUsMatchingOutfit": {
+        "title": "Give us a matching outfit"
+      },
+      "meAsTheGirlWithAPearl": {
+        "title": "Me as The Girl with a Pearl"
+      },
+      "createProfessionalProductPhoto": {
+        "title": "Create a professional product photo"
+      },
+      "createProfessionalJobPhoto": {
+        "title": "Create a professional job photo"
+      },
+      "removePeopleInTheBackground": {
+        "title": "Remove people in the background"
+      },
+      "ghibliStyle": {
+        "title": "Convert to Ghibli style"
+      },
+      "removeWatermark": {
+        "title": "Remove watermark"
+      },
+      "removeBackground": {
+        "title": "Remove background"
+      },
+      "turnIntoClaymationStyle": {
+        "title": "Turn into claymation style"
+      },
+      "sketchToReal": {
+        "title": "Sketch to real"
+      },
+      "ps2Retro": {
+        "title": "PS2 retro game style"
+      },
+      "colorizePhoto": {
+        "title": "Colorize B&W photo"
+      },
+      "cyberpunk": {
+        "title": "Cyberpunk style"
+      },
+      "restorePhoto": {
+        "title": "Restore an old photo"
+      },
+      "keychain": {
+        "title": "Turn into a keychain"
       }
     },
     "howItWorks": {

@@ -6,6 +6,7 @@ import "../globals.css";
 import Script from "next/script";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { ToastContainer } from "@/components/ui/ToastContainer";
 
 export const metadata: Metadata = {
   title: "Lavie AI - Free AI Image Generator",
@@ -70,6 +71,7 @@ export default async function LocaleLayout({
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />
+          <ToastContainer />
         </NextIntlClientProvider>
       </body>
     </html>

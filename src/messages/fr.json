@@ -76,9 +76,10 @@
       "loginRequiredForFastMode": "Veuillez vous connecter à Google pour utiliser le mode rapide et profiter d'une vitesse de génération 5 fois plus rapide.",
       "generate": "Générer",
       "generating": "Génération en cours...",
-      "notEnoughCredits": "Crédits insuffisants. Vous avez besoin de {cost} crédits pour générer.",
+      "notEnoughCredits": "Pas assez de crédits. Vous avez besoin de {cost} crédits pour générer.",
       "generationFailed": "La génération a échoué. Veuillez réessayer.",
-      "upgradeRequired": "Ce modèle nécessite un plan premium. Veuillez mettre à niveau."
+      "upgradeRequiredTitle": "Mise à niveau requise",
+      "upgradeRequired": "Ce modèle ou cette résolution nécessite un plan premium. Veuillez mettre à niveau pour débloquer plus de fonctionnalités."
     },
     "results": {
       "title": "Image Générée",
@@ -135,30 +136,66 @@
       "t18": { "text": "Une ressource fantastique pour le story-board. Cela donne vie à mes scripts instantanément.", "name": "William Martin", "role": "Cinéaste" }
     },
     "useCases": {
-      "title": "Lavie AI Built for Every Creative Need",
-      "designers": {
-        "title": "For Designers",
-        "desc": "Generate UI mockups, icons, and web assets instantly to accelerate your design process."
+      "title": "Découvrir quelque chose de nouveau",
+      "createHolidayCard": {
+        "title": "Créer une carte de vœux"
       },
-      "marketers": {
-        "title": "For Marketers",
-        "desc": "Create engaging social media posts, ad creatives, and blog banners that convert."
+      "createAlbumCover": {
+        "title": "Créer une pochette d'album"
       },
-      "creators": {
-        "title": "For Content Creators",
-        "desc": "Bring your stories to life with stunning book covers, character concepts, and illustrations."
+      "redecorateMyRoom": {
+        "title": "Redécorer ma chambre"
       },
-      "ecommerce": {
-        "title": "For E-commerce",
-        "desc": "Design professional product backgrounds and lifestyle mockups without a photoshoot."
+      "whatWouldILookLikeAsAKPopStar": {
+        "title": "À quoi ressemblerais-je en star de K-Pop ?"
       },
-      "gameDev": {
-        "title": "For Game Developers",
-        "desc": "Generate concept art, character sprites, and environmental assets for your next indie game."
+      "styleMe": {
+        "title": "Donnez-moi un style"
       },
-      "educators": {
-        "title": "For Educators",
-        "desc": "Create engaging visual aids and diagrams to make learning materials more interactive."
+      "giveUsMatchingOutfit": {
+        "title": "Donnez-nous une tenue assortie"
+      },
+      "meAsTheGirlWithAPearl": {
+        "title": "Moi en Jeune Fille à la perle"
+      },
+      "createProfessionalProductPhoto": {
+        "title": "Créer une photo de produit professionnelle"
+      },
+      "createProfessionalJobPhoto": {
+        "title": "Créer une photo professionnelle pour le travail"
+      },
+      "removePeopleInTheBackground": {
+        "title": "Supprimer les personnes en arrière-plan"
+      },
+      "ghibliStyle": {
+        "title": "Convertir au style Ghibli"
+      },
+      "removeWatermark": {
+        "title": "Supprimer le filigrane"
+      },
+      "removeBackground": {
+        "title": "Supprimer l'arrière-plan"
+      },
+      "turnIntoClaymationStyle": {
+        "title": "Transformer en style pâte à modeler"
+      },
+      "sketchToReal": {
+        "title": "Du croquis à la réalité"
+      },
+      "ps2Retro": {
+        "title": "Style jeu rétro PS2"
+      },
+      "colorizePhoto": {
+        "title": "Coloriser photo N&B"
+      },
+      "cyberpunk": {
+        "title": "Style Cyberpunk"
+      },
+      "restorePhoto": {
+        "title": "Restaurer une ancienne photo"
+      },
+      "keychain": {
+        "title": "Transformer en porte-clés"
       }
     },
     "howItWorks": {

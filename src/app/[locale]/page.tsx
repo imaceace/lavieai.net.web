@@ -9,7 +9,10 @@ import {
   GenerationResult,
 } from "@/components/generator";
 import { LoginModal } from "@/components/auth/LoginModal";
-import { generateApi, pollTaskStatus, userApi, configApi, authApi } from "@/lib/api-client";
+import { UpgradeModal } from "@/components/auth/UpgradeModal";
+import { X, UploadCloud, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/useToast";
+import { generateApi, pollTaskStatus, userApi, configApi, authApi, uploadApi } from "@/lib/api-client";
 import Script from "next/script";
 
 // Style icons mapping
@@ -69,6 +72,7 @@ export default function Home() {
   const t = useTranslations("home");
   const tGallery = useTranslations("gallery");
   const tCommon = useTranslations("common");
+  const { addToast } = useToast();
 
   // Dynamic options from API
   const [styleOptions, setStyleOptions] = useState<Array<{ id: string; label: string }>>([]);
@@ -89,6 +93,12 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [result, setResult] = useState<{ imageUrl: string } | null>(null);
+  
+  // Image to Image state
+  const [referenceImage, setReferenceImage] = useState<{ url: string; id: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [activeUseCase, setActiveUseCase] = useState<string>('general');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // User points state
   const [userCredits, setUserCredits] = useState<number | null>(null);
@@ -98,6 +108,9 @@ export default function Home() {
   const [fastMode, setFastMode] = useState(false);
   const [showNegativePrompt, setShowNegativePrompt] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradeModalTitle, setUpgradeModalTitle] = useState("");
+  const [upgradeModalSubtitle, setUpgradeModalSubtitle] = useState("");
 
   // Track last manual action for "Last Operation Wins" logic
   const lastPromptEditTime = useRef<number>(0);
@@ -240,7 +253,9 @@ export default function Home() {
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
     if (userCredits !== null && userCredits < generationCost) {
-      alert(t('generator.notEnoughCredits', { cost: generationCost }));
+      setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
+      setUpgradeModalSubtitle(t('generator.notEnoughCredits', { cost: generationCost }));
+      setIsUpgradeModalOpen(true);
       return;
     }
 
@@ -276,14 +291,28 @@ export default function Home() {
     }
 
     try {
-      const task = await generateApi.textToImage({
-        prompt: finalPrompt,
-        negative_prompt: showNegativePrompt ? negativePrompt : undefined,
-        style: style || undefined,
-        resolution,
-        model: model, // use selected model
-        fast_mode: fastMode,
-      });
+      let task;
+      if (referenceImage) {
+        task = await generateApi.imageToImage({
+          prompt: finalPrompt,
+          negativePrompt: showNegativePrompt ? negativePrompt : undefined,
+          style: style || undefined,
+          resolution,
+          model: model,
+          fastMode: fastMode,
+          imageUrl: referenceImage.url,
+          imageId: referenceImage.id,
+        });
+      } else {
+        task = await generateApi.textToImage({
+          prompt: finalPrompt,
+          negativePrompt: showNegativePrompt ? negativePrompt : undefined,
+          style: style || undefined,
+          resolution,
+          model: model,
+          fastMode: fastMode,
+        });
+      }
 
       const completedTask = await pollTaskStatus(
         task.id,
@@ -304,7 +333,15 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Generation error:", error);
-      alert(error instanceof Error ? error.message : t('generator.generationFailed'));
+      
+      const errorCode = (error as any).code;
+      if (errorCode === 'RESOLUTION_LIMIT' || errorCode === 'UPGRADE_REQUIRED') {
+        setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
+        setUpgradeModalSubtitle(error instanceof Error ? error.message : t('generator.upgradeRequired'));
+        setIsUpgradeModalOpen(true);
+      } else {
+        addToast(error instanceof Error ? error.message : t('generator.generationFailed'), 'error');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -417,6 +454,63 @@ export default function Home() {
     if (validComp.length > 0) {
       const randomComp = validComp[Math.floor(Math.random() * validComp.length)];
       setComposition(randomComp.id);
+    }
+  };
+
+  const handleSelectUseCase = (params: any) => {
+    if (params.prompt) setPrompt(params.prompt);
+    if (params.style) setStyle(params.style);
+    if (params.resolution) setResolution(params.resolution);
+    if (params.color) setColor(params.color);
+    if (params.lighting) setLighting(params.lighting);
+    if (params.composition) setComposition(params.composition);
+    
+    if (params.negativePrompt) {
+      setNegativePrompt(params.negativePrompt);
+      setShowNegativePrompt(true);
+    } else {
+      setNegativePrompt("");
+      setShowNegativePrompt(false);
+    }
+
+    if (params.id) setActiveUseCase(params.id);
+
+    // Trigger file upload dialog automatically for all use cases to encourage img2img
+    if (!referenceImage) {
+      fileInputRef.current?.click();
+    }
+
+    // Update timestamp to override sniffing
+    lastPromptEditTime.current = Date.now();
+    lastDropdownEditTime.current = Date.now() + 100; // make dropdown edits win
+
+    // Scroll to generator section
+    setTimeout(() => {
+      const generatorSection = document.getElementById('generator');
+      if (generatorSection) {
+        generatorSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      addToast("File is too large. Maximum size is 10MB.", "error");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const data = await uploadApi.uploadImage(file, activeUseCase);
+      setReferenceImage({ url: data.url, id: data.id });
+    } catch (err: any) {
+      addToast(err.message || "Upload failed", "error");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -552,18 +646,39 @@ export default function Home() {
                 {/* Image upload + Prompt row */}
                 <div className="flex gap-3">
                   {/* Upload Image button */}
-                  <button
-                    type="button"
-                    className="flex-shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all"
-                    style={{
-                      background: 'linear-gradient(135deg, #7c3aed20, #f43f5e20)',
-                    }}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>
-                    </svg>
-                    <span className="text-[8px] generator-text-muted">{t('generator.imageUpload')}</span>
-                  </button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileUpload} 
+                    accept="image/*" 
+                    className="hidden" 
+                  />
+                  <div className="relative flex-shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center transition-all group overflow-hidden"
+                    style={{ background: 'linear-gradient(135deg, #7c3aed20, #f43f5e20)' }}>
+                    
+                    {referenceImage ? (
+                      <>
+                        <img src={referenceImage.url} alt="Reference" className="w-full h-full object-cover opacity-60" />
+                        <button 
+                          onClick={() => setReferenceImage(null)}
+                          className="absolute top-0 right-0 p-0.5 bg-black/50 text-white rounded-bl-lg hover:bg-black/80"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </>
+                    ) : isUploading ? (
+                      <Loader2 className="w-5 h-5 text-rose-500 animate-spin" />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full h-full flex flex-col items-center justify-center gap-1 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                      >
+                        <UploadCloud className="w-5 h-5 text-rose-500" />
+                        <span className="text-[8px] generator-text-muted px-1 text-center leading-tight">Image</span>
+                      </button>
+                    )}
+                  </div>
 
                   {/* Prompt textarea */}
                   <textarea
@@ -751,13 +866,15 @@ export default function Home() {
                     type="button"
                     onClick={() => {
                       setPrompt("");
+                      setNegativePrompt("");
+                      setShowNegativePrompt(false);
                       setStyle("none");
                       setColor("none");
                       setLighting("none");
                       setComposition("none");
                     }}
                     className="px-4 h-10 text-sm font-medium rounded-full transition-colors disabled:opacity-50 generator-button"
-                    disabled={!prompt && style === "none" && color === "none" && lighting === "none" && composition === "none"}
+                    disabled={!prompt && !negativePrompt && style === "none" && color === "none" && lighting === "none" && composition === "none"}
                   >
                     {t('generator.clear')}
                   </button>
@@ -777,8 +894,9 @@ export default function Home() {
                     onChange={(val) => {
                       if (val) {
                         if ((val === 'max' || val === 'ultra') && (!user || user.tier === 'free')) {
-                          alert(t('generator.upgradeRequired') || 'This model requires a premium plan. Please upgrade.');
-                          // Could also show a modal or redirect
+                          setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
+                          setUpgradeModalSubtitle(t('generator.upgradeRequired'));
+                          setIsUpgradeModalOpen(true);
                           return;
                         }
                         setModel(val);
@@ -916,125 +1034,297 @@ export default function Home() {
       {/* Use Cases Section */}
       <section className="py-16 px-4" style={{ background: 'var(--gen-input-bg)' }}>
         <div className="container mx-auto max-w-6xl">
-          <h2 className="text-3xl font-bold text-center mb-12" style={{ color: 'var(--gen-text)' }}>{t('useCases.title')}</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-            {/* Designer */}
-            <div className="group relative overflow-hidden rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-              style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}
-              onClick={() => handleUsePrompt("Professional UI/UX design for a modern mobile banking app, clean interface, glassmorphism, dribbble style, high resolution")}
-            >
-              <div className="p-8">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110" style={{ background: 'rgba(236, 72, 153, 0.1)' }}>
-                  <svg className="w-6 h-6" style={{ color: '#ec4899' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                  </svg>
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-3xl font-bold" style={{ color: 'var(--gen-text)' }}>{t('useCases.title')}</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {[
+              
+              {
+                id: "removeWatermark",
+                titleKey: "useCases.removeWatermark.title",
+                image: "/images/quick-i2i/remove-watermark.webp",
+                params: {
+                  id: "removeWatermark",
+                  prompt: "Clean image, perfect quality, no watermarks, no text, no logos, restored, clear, identical to original but clean",
+                  style: "photorealistic",
+                  resolution: [1024, 1024],
+                  lighting: "natural",
+                  negativePrompt: "watermark, text, logo, signature, letters, words, copyright, messy"
+                }
+              },
+               {
+                id: "giveUsMatchingOutfit",
+                titleKey: "useCases.giveUsMatchingOutfit.title",
+                image: "/images/quick-i2i/give-us-a-matching-outfit.webp",
+                params: {
+                  id: "giveUsMatchingOutfit",
+                  prompt: "A cute couple walking a dog in a park, wearing matching aesthetic outfits, autumn leaves, romantic atmosphere, cinematic lighting",
+                  style: "photorealistic",
+                  resolution: [1344, 756],
+                  lighting: "golden-hour",
+                  negativePrompt: "deformed faces, extra limbs, messy background"
+                }
+              },
+              {
+                id: "removeBackground",
+                titleKey: "useCases.removeBackground.title",
+                image: "/images/quick-i2i/remove-background.webp",
+                params: {
+                  id: "removeBackground",
+                  prompt: "Subject completely isolated on a pure solid white background, clean cutout edges, studio lighting, no background scenery, product photography style",
+                  style: "commercial",
+                  resolution: [1024, 1024],
+                  lighting: "studio",
+                  negativePrompt: "background scenery, messy background, dark background, shadow, room, outdoor"
+                }
+              },
+              {
+                id: "removePeopleInTheBackground",
+                titleKey: "useCases.removePeopleInTheBackground.title",
+                image: "/images/quick-i2i/remove-people-in-the-background.webp",
+                params: {
+                  id: "removePeopleInTheBackground",
+                  prompt: "Clean and pure original background, completely empty, no people, no humans, identical to the original environment but without any characters, pure scenery",
+                  style: "photorealistic",
+                  resolution: [1024, 1024],
+                  lighting: "natural",
+                  negativePrompt: "people, person, human, crowd, figures, silhouettes, text, blurry"
+                }
+              },
+              
+              {
+                id: "ghibliStyle",
+                titleKey: "useCases.ghibliStyle.title",
+                image: "/images/quick-i2i/convert-to-ghibli-style.webp",
+                params: {
+                  id: "ghibliStyle",
+                  prompt: "Studio Ghibli style animation art, Hayao Miyazaki, vibrant colors, anime masterpiece, highly detailed, beautiful scenery, 2d animation",
+                  style: "anime",
+                  resolution: [1024, 1024],
+                  lighting: "natural",
+                  color: "vibrant",
+                  negativePrompt: "photorealistic, 3d, cg, deformed, poorly drawn, ugly, realistic"
+                }
+              },
+              {
+                id: "turnIntoClaymationStyle",
+                titleKey: "useCases.turnIntoClaymationStyle.title",
+                image: "/images/quick-i2i/turn-into-claymation-style.webp",
+                params: {
+                  id: "turnIntoClaymationStyle",
+                  prompt: "Cute claymation style, 3D clay render, Popmart blind box toy style, smooth plastic and clay texture, Pixar style, adorable, soft studio lighting, octane render",
+                  style: "3d-render",
+                  resolution: [1024, 1024],
+                  lighting: "soft",
+                  negativePrompt: "realistic, photorealistic, 2d, flat, drawing, sketch, ugly, deformed"
+                }
+              },
+              {
+                id: "sketchToReal",
+                titleKey: "useCases.sketchToReal.title",
+                image: "/images/quick-i2i/sketch-to-real.webp",
+                params: {
+                  id: "sketchToReal",
+                  prompt: "Highly detailed photorealistic render, highly finished, professional photography, realistic textures, ray tracing, unreal engine 5, masterpiece",
+                  style: "photorealistic",
+                  resolution: [1024, 1024],
+                  lighting: "natural",
+                  negativePrompt: "sketch, drawing, lines, outline, uncolored, flat, 2d, cartoon, anime"
+                }
+              },
+              {
+                id: "ps2Retro",
+                titleKey: "useCases.ps2Retro.title",
+                image: "/images/quick-i2i/ps2-retro.webp",
+                params: {
+                  id: "ps2Retro",
+                  prompt: "Early 2000s PS2 game graphics, low poly 3D render, retro video game aesthetic, vintage CGI, PlayStation 2 style, slightly pixelated",
+                  style: "retro",
+                  resolution: [1024, 1024],
+                  lighting: "dramatic",
+                  negativePrompt: "high poly, realistic, highly detailed, modern graphics, 8k, photorealistic"
+                }
+              },
+              {
+                id: "colorizePhoto",
+                titleKey: "useCases.colorizePhoto.title",
+                image: "/images/quick-i2i/colorize-photo.webp",
+                params: {
+                  id: "colorizePhoto",
+                  prompt: "Perfectly colorized historical photo, natural realistic skin tones, vibrant and accurate colors, highly detailed, restored photography",
+                  style: "photorealistic",
+                  resolution: [1024, 1024],
+                  lighting: "natural",
+                  negativePrompt: "black and white, monochrome, grayscale, sepia, faded, desaturated, unrealistic colors"
+                }
+              },
+              {
+                id: "cyberpunk",
+                titleKey: "useCases.cyberpunk.title",
+                image: "/images/quick-i2i/cyberpunk.webp",
+                params: {
+                  id: "cyberpunk",
+                  prompt: "Cyberpunk style, futuristic city neon lights, dark sci-fi atmosphere, glowing blue and pink neon, Blade Runner aesthetic, highly detailed concept art",
+                  style: "cyberpunk",
+                  resolution: [1024, 1024],
+                  lighting: "dramatic",
+                  negativePrompt: "daylight, natural, realistic, boring, simple, flat, low contrast"
+                }
+              },
+              {
+                id: "createHolidayCard",
+                titleKey: "useCases.createHolidayCard.title",
+                image: "/images/quick-i2i/create-a-holiday-card.webp",
+                params: {
+                  id: "createHolidayCard",
+                  prompt: "A beautiful holiday greeting card design, festive decorations, warm cozy atmosphere, highly detailed illustration, 4k",
+                  style: "illustration",
+                  resolution: [1024, 1024],
+                  color: "warm",
+                  lighting: "soft",
+                  negativePrompt: "text, letters, words, messy, blurry"
+                }
+              },
+              {
+                id: "createAlbumCover",
+                titleKey: "useCases.createAlbumCover.title",
+                image: "/images/quick-i2i/create-an-album-cover.webp",
+                params: {
+                  id: "createAlbumCover",
+                  prompt: "An artistic vinyl album cover, abstract surrealism, retro aesthetic, bold typography space, moody cinematic lighting",
+                  style: "digital-art",
+                  resolution: [1024, 1024],
+                  color: "vibrant",
+                  lighting: "dramatic",
+                  negativePrompt: "text, letters, boring, plain, low quality"
+                }
+              },
+              {
+                id: "redecorateMyRoom",
+                titleKey: "useCases.redecorateMyRoom.title",
+                image: "/images/quick-i2i/redecorate-my-room.webp",
+                params: {
+                  id: "redecorateMyRoom",
+                  prompt: "Modern cozy bedroom interior design, minimalist furniture, large windows with sunlight, indoor plants, architectural photography",
+                  style: "interior",
+                  resolution: [1344, 756],
+                  lighting: "natural",
+                  composition: "wide",
+                  negativePrompt: "messy, cluttered, distorted, deformed furniture"
+                }
+              },
+              {
+                id: "whatWouldILookLikeAsAKPopStar",
+                titleKey: "useCases.whatWouldILookLikeAsAKPopStar.title",
+                image: "/images/quick-i2i/what-would-i-look-like-as-a-k-pop-star.webp",
+                params: {
+                  id: "whatWouldILookLikeAsAKPopStar",
+                  prompt: "A glamorous K-Pop idol portrait, stage lighting, stylish stage outfit, perfect makeup, highly detailed face, professional photography",
+                  style: "portrait",
+                  resolution: [768, 1344],
+                  lighting: "studio",
+                  negativePrompt: "ugly, deformed, blurry, bad anatomy"
+                }
+              },
+              {
+                id: "styleMe",
+                titleKey: "useCases.styleMe.title",
+                image: "/images/quick-i2i/style-me.webp",
+                params: {
+                  id: "styleMe",
+                  prompt: "Fashion editorial photography, a model wearing trendy high-end streetwear, urban background, elegant pose, Vogue style",
+                  style: "fashion",
+                  resolution: [768, 1344],
+                  lighting: "soft",
+                  negativePrompt: "bad proportions, missing limbs, bad anatomy"
+                }
+              },
+             
+              {
+                id: "meAsTheGirlWithAPearl",
+                titleKey: "useCases.meAsTheGirlWithAPearl.title",
+                image: "/images/quick-i2i/me-as-the-girl-with-a-pearl.webp",
+                params: {
+                  id: "meAsTheGirlWithAPearl",
+                  prompt: "A portrait of a modern girl styled like 'Girl with a Pearl Earring', classical oil painting style, chiaroscuro lighting, masterpiece",
+                  style: "oil-painting",
+                  resolution: [896, 1152],
+                  lighting: "dramatic",
+                  negativePrompt: "modern clothes, bad anatomy, poorly drawn face"
+                }
+              },
+              {
+                id: "createProfessionalProductPhoto",
+                titleKey: "useCases.createProfessionalProductPhoto.title",
+                image: "/images/quick-i2i/create-a-professional-product-photo.webp",
+                params: {
+                  id: "createProfessionalProductPhoto",
+                  prompt: "Professional commercial photography of a premium product, floating on a sleek pedestal, clean background, studio lighting, 8k",
+                  style: "commercial",
+                  resolution: [1024, 1024],
+                  lighting: "studio",
+                  negativePrompt: "text, watermark, blurry, low quality"
+                }
+              },
+              {
+                id: "createProfessionalJobPhoto",
+                titleKey: "useCases.createProfessionalJobPhoto.title",
+                image: "/images/quick-i2i/create-a-professional-job-photo.webp",
+                params: {
+                  id: "createProfessionalJobPhoto",
+                  prompt: "A professional corporate headshot, business attire, neutral background, soft friendly smile, LinkedIn profile picture style",
+                  style: "portrait",
+                  resolution: [1024, 1024],
+                  lighting: "soft",
+                  negativePrompt: "casual clothes, messy hair, bad lighting"
+                }
+              },
+              {
+                id: "restorePhoto",
+                titleKey: "useCases.restorePhoto.title",
+                image: "/images/quick-i2i/restore-photo.webp",
+                params: {
+                  id: "restorePhoto",
+                  prompt: "A highly detailed, perfectly restored vintage photograph, sepia tone, sharp focus, historical attire, elegant portrait",
+                  style: "analog-film",
+                  resolution: [896, 1152],
+                  lighting: "soft",
+                  negativePrompt: "scratches, dust, noise, torn, damaged, blurry, modern"
+                }
+              },
+              {
+                id: "keychain",
+                titleKey: "useCases.keychain.title",
+                image: "/images/quick-i2i/keychain.webp",
+                params: {
+                  id: "keychain",
+                  prompt: "A cute 3D rendered keychain of a dog wearing red goggles, standing on a wooden table, metallic ring attached, octane render, soft lighting",
+                  style: "3d-render",
+                  resolution: [1024, 1024],
+                  lighting: "studio",
+                  negativePrompt: "2d, flat, realistic photo, messy background"
+                }
+              }
+            ].map((useCase) => (
+              <div 
+                key={useCase.id}
+                className="group flex items-center gap-4 p-3 rounded-2xl cursor-pointer transition-all hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-[var(--gen-border)]"
+                onClick={() => handleSelectUseCase(useCase.params)}
+              >
+                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 relative">
+                  <img 
+                    src={useCase.image} 
+                    alt={t(useCase.titleKey as any)} 
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                 </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: 'var(--gen-text)' }}>{t('useCases.designers.title')}</h3>
-                <p className="text-base mb-6" style={{ color: 'var(--gen-text-muted)' }}>{t('useCases.designers.desc')}</p>
-                <div className="flex items-center text-sm font-medium text-pink-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {tGallery('generateSimilar')} <span className="ml-1">→</span>
+                <div className="flex-1 font-semibold text-sm md:text-base leading-snug" style={{ color: 'var(--gen-text)' }}>
+                  {t(useCase.titleKey as any)}
                 </div>
               </div>
-            </div>
-
-            {/* Marketers */}
-            <div className="group relative overflow-hidden rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-              style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}
-              onClick={() => handleUsePrompt("A vibrant and eye-catching social media banner for a summer music festival, bold typography, energetic colors, abstract shapes")}
-            >
-              <div className="p-8">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110" style={{ background: 'rgba(59, 130, 246, 0.1)' }}>
-                  <svg className="w-6 h-6" style={{ color: '#3b82f6' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: 'var(--gen-text)' }}>{t('useCases.marketers.title')}</h3>
-                <p className="text-base mb-6" style={{ color: 'var(--gen-text-muted)' }}>{t('useCases.marketers.desc')}</p>
-                <div className="flex items-center text-sm font-medium text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {tGallery('generateSimilar')} <span className="ml-1">→</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Content Creators */}
-            <div className="group relative overflow-hidden rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-              style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}
-              onClick={() => handleUsePrompt("Epic fantasy book cover illustration, a lone warrior facing a massive dragon on a volcanic peak, dramatic lighting, highly detailed")}
-            >
-              <div className="p-8">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110" style={{ background: 'rgba(139, 92, 246, 0.1)' }}>
-                  <svg className="w-6 h-6" style={{ color: '#8b5cf6' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: 'var(--gen-text)' }}>{t('useCases.creators.title')}</h3>
-                <p className="text-base mb-6" style={{ color: 'var(--gen-text-muted)' }}>{t('useCases.creators.desc')}</p>
-                <div className="flex items-center text-sm font-medium text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {tGallery('generateSimilar')} <span className="ml-1">→</span>
-                </div>
-              </div>
-            </div>
-
-            {/* E-commerce */}
-            <div className="group relative overflow-hidden rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-              style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}
-              onClick={() => handleUsePrompt("Minimalist product photography background, marble podium with soft morning sunlight, palm leaf shadow, elegant pastel colors")}
-            >
-              <div className="p-8">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110" style={{ background: 'rgba(16, 185, 129, 0.1)' }}>
-                  <svg className="w-6 h-6" style={{ color: '#10b981' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: 'var(--gen-text)' }}>{t('useCases.ecommerce.title')}</h3>
-                <p className="text-base mb-6" style={{ color: 'var(--gen-text-muted)' }}>{t('useCases.ecommerce.desc')}</p>
-                <div className="flex items-center text-sm font-medium text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {tGallery('generateSimilar')} <span className="ml-1">→</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Game Developers */}
-            <div className="group relative overflow-hidden rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-              style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}
-              onClick={() => handleUsePrompt("Isometric 2D game asset, a magical potion shop in a fantasy village, glowing crystals, stylized hand-painted texture")}
-            >
-              <div className="p-8">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110" style={{ background: 'rgba(245, 158, 11, 0.1)' }}>
-                  <svg className="w-6 h-6" style={{ color: '#f59e0b' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: 'var(--gen-text)' }}>{t('useCases.gameDev.title')}</h3>
-                <p className="text-base mb-6" style={{ color: 'var(--gen-text-muted)' }}>{t('useCases.gameDev.desc')}</p>
-                <div className="flex items-center text-sm font-medium text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {tGallery('generateSimilar')} <span className="ml-1">→</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Educators */}
-            <div className="group relative overflow-hidden rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-              style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}
-              onClick={() => handleUsePrompt("An educational illustration of the solar system, colorful planets orbiting the sun, clear labels, child-friendly style, 8k")}
-            >
-              <div className="p-8">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110" style={{ background: 'rgba(6, 182, 212, 0.1)' }}>
-                  <svg className="w-6 h-6" style={{ color: '#06b6d4' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path d="M12 14l9-5-9-5-9 5 9 5z" />
-                    <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: 'var(--gen-text)' }}>{t('useCases.educators.title')}</h3>
-                <p className="text-base mb-6" style={{ color: 'var(--gen-text-muted)' }}>{t('useCases.educators.desc')}</p>
-                <div className="flex items-center text-sm font-medium text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {tGallery('generateSimilar')} <span className="ml-1">→</span>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
@@ -1363,6 +1653,13 @@ export default function Home() {
         onClose={() => setIsLoginModalOpen(false)} 
         title={t('generator.loginRequiredTitle')}
         subtitle={t('generator.loginRequiredForFastMode')}
+      />
+
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        title={upgradeModalTitle}
+        subtitle={upgradeModalSubtitle}
       />
     </div>
   );

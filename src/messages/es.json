@@ -78,7 +78,8 @@
       "generating": "Generando...",
       "notEnoughCredits": "No hay suficientes créditos. Necesitas {cost} créditos para generar.",
       "generationFailed": "Error al generar. Por favor, inténtalo de nuevo.",
-      "upgradeRequired": "Este modelo requiere un plan premium. Por favor, mejora tu plan."
+      "upgradeRequiredTitle": "Mejora Requerida",
+      "upgradeRequired": "Este modelo o resolución requiere un plan premium. Por favor, mejore para desbloquear más funciones."
     },
     "results": {
       "title": "Imagen Generada",
@@ -135,30 +136,66 @@
       "t18": { "text": "Un recurso fantástico para el guion gráfico. Da vida a mis guiones al instante.", "name": "William Martin", "role": "Cineasta" }
     },
     "useCases": {
-      "title": "Lavie AI diseñada para cada necesidad creativa",
-      "designers": {
-        "title": "Para Diseñadores",
-        "desc": "Genera maquetas de UI, iconos y activos web al instante para acelerar tu proceso de diseño."
+      "title": "Descubre algo nuevo",
+      "createHolidayCard": {
+        "title": "Crear una tarjeta navideña"
       },
-      "marketers": {
-        "title": "Para Marketers",
-        "desc": "Crea publicaciones atractivas en redes sociales, creatividades publicitarias y banners de blog que conviertan."
+      "createAlbumCover": {
+        "title": "Crear una portada de álbum"
       },
-      "creators": {
-        "title": "Para Creadores de Contenido",
-        "desc": "Da vida a tus historias con impresionantes portadas de libros, conceptos de personajes e ilustraciones."
+      "redecorateMyRoom": {
+        "title": "Redecorar mi habitación"
       },
-      "ecommerce": {
-        "title": "Para Comercio Electrónico",
-        "desc": "Diseña fondos de productos profesionales y maquetas de estilo de vida sin una sesión de fotos."
+      "whatWouldILookLikeAsAKPopStar": {
+        "title": "¿Cómo me vería como estrella de K-Pop?"
       },
-      "gameDev": {
-        "title": "Para Desarrolladores de Juegos",
-        "desc": "Genera arte conceptual, sprites de personajes y activos ambientales para tu próximo juego indie."
+      "styleMe": {
+        "title": "Estilízame"
       },
-      "educators": {
-        "title": "Para Educadores",
-        "desc": "Crea ayudas visuales y diagramas atractivos para que los materiales de aprendizaje sean más interactivos."
+      "giveUsMatchingOutfit": {
+        "title": "Danos un atuendo a juego"
+      },
+      "meAsTheGirlWithAPearl": {
+        "title": "Yo como La joven de la perla"
+      },
+      "createProfessionalProductPhoto": {
+        "title": "Crear foto profesional de producto"
+      },
+      "createProfessionalJobPhoto": {
+        "title": "Crear una foto profesional para trabajo"
+      },
+      "removePeopleInTheBackground": {
+        "title": "Eliminar personas en el fondo"
+      },
+      "ghibliStyle": {
+        "title": "Convertir a estilo Ghibli"
+      },
+      "removeWatermark": {
+        "title": "Eliminar marca de agua"
+      },
+      "removeBackground": {
+        "title": "Eliminar fondo"
+      },
+      "turnIntoClaymationStyle": {
+        "title": "Convertir en estilo plastilina"
+      },
+      "sketchToReal": {
+        "title": "De boceto a realidad"
+      },
+      "ps2Retro": {
+        "title": "Estilo de juego retro PS2"
+      },
+      "colorizePhoto": {
+        "title": "Colorear foto en blanco y negro"
+      },
+      "cyberpunk": {
+        "title": "Estilo Cyberpunk"
+      },
+      "restorePhoto": {
+        "title": "Restaurar una foto antigua"
+      },
+      "keychain": {
+        "title": "Convertir en un llavero"
       }
     },
     "howItWorks": {

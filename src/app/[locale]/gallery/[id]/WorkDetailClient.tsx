@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Link } from "@/routing";
-import { ArrowLeft, Copy, Sparkles, Download, Share2, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/useToast";
+import { ArrowLeft, Copy, Sparkles, Download, Share2, Loader2, ChevronDown } from "lucide-react";
 
 interface GalleryItem {
   id: string;
@@ -88,6 +89,7 @@ export function WorkDetailClient({
   workId: string;
 }) {
   const router = useRouter();
+  const { addToast } = useToast();
 
   const [item, setItem] = useState<GalleryItem | null>(null);
   const [relatedWorks, setRelatedWorks] = useState<GalleryItem[]>([]);
@@ -151,24 +153,96 @@ export function WorkDetailClient({
     }
   };
 
-  const handleDownload = async () => {
+  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
+  const downloadMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(event.target as Node)) {
+        setIsDownloadMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleDownload = async (format: 'webp' | 'png' | 'jpeg' | 'ico') => {
+    setIsDownloadMenuOpen(false);
     if (!item?.result_url && !item?.imageUrl) return;
     
     const url = item.result_url || item.imageUrl;
     try {
       const res = await fetch(url!);
-      const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
+      const originalBlob = await res.blob();
+      
+      let finalBlob = originalBlob;
+      const safeName = item.prompt.slice(0, 30).replace(/[^a-z0-9]/gi, "_").toLowerCase();
+      let ext = format;
+      
+      if (format !== 'webp' && format !== 'png' && format !== 'jpeg' && format !== 'ico') {
+         // fallback
+      } else {
+        // Need to draw to canvas for conversion
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const imgLoadPromise = new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = window.URL.createObjectURL(originalBlob);
+        });
+        await imgLoadPromise;
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas not supported');
+        ctx.drawImage(img, 0, 0);
+        
+        if (format === 'ico') {
+          const size = Math.min(img.width, img.height, 256);
+          const icoCanvas = document.createElement('canvas');
+          icoCanvas.width = size;
+          icoCanvas.height = size;
+          const icoCtx = icoCanvas.getContext('2d');
+          icoCtx?.drawImage(img, 0, 0, size, size);
+          
+          const pngBlob = await new Promise<Blob>((res) => icoCanvas.toBlob((b) => res(b!), 'image/png'));
+          const pngBuffer = await pngBlob.arrayBuffer();
+          const pngArray = new Uint8Array(pngBuffer);
+          
+          const icoBuffer = new ArrayBuffer(22 + pngArray.length);
+          const view = new DataView(icoBuffer);
+          view.setUint16(0, 0, true);
+          view.setUint16(2, 1, true);
+          view.setUint16(4, 1, true);
+          view.setUint8(6, size === 256 ? 0 : size);
+          view.setUint8(7, size === 256 ? 0 : size);
+          view.setUint8(8, 0);
+          view.setUint8(9, 0);
+          view.setUint16(10, 1, true);
+          view.setUint16(12, 32, true);
+          view.setUint32(14, pngArray.length, true);
+          view.setUint32(18, 22, true);
+          new Uint8Array(icoBuffer, 22).set(pngArray);
+          
+          finalBlob = new Blob([icoBuffer], { type: 'image/x-icon' });
+        } else {
+          finalBlob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), `image/${format}`, 0.95));
+        }
+      }
+
+      const blobUrl = window.URL.createObjectURL(finalBlob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      const safeName = item.prompt.slice(0, 30).replace(/[^a-z0-9]/gi, "_").toLowerCase();
-      a.download = `lavie_${safeName || "image"}.png`;
+      a.download = `lavie_${safeName || "image"}.${ext}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(blobUrl);
       document.body.removeChild(a);
-    } catch {
-      alert(locale === "es" ? "Descarga fallida" : "Download failed");
+    } catch (err) {
+      console.error('Download failed', err);
+      addToast(locale === "es" ? "Descarga fallida" : "Download failed", "error");
     }
   };
 
@@ -182,7 +256,7 @@ export function WorkDetailClient({
       });
     } else {
       navigator.clipboard.writeText(url);
-      alert(locale === "es" ? "¡Enlace copiado al portapapeles!" : "Link copied to clipboard!");
+      addToast(locale === "es" ? "¡Enlace copiado al portapapeles!" : "Link copied to clipboard!", "success");
     }
   };
 
@@ -324,13 +398,44 @@ export function WorkDetailClient({
               {translations.createSimilar}
             </button>
             {imageUrl && (
-              <button
-                onClick={handleDownload}
-                className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                <Download className="w-5 h-5 text-gray-600" />
-                <span className="text-gray-700">{translations.download}</span>
-              </button>
+              <div className="relative inline-block text-left" ref={downloadMenuRef}>
+                <button
+                  onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  <Download className="w-5 h-5 text-gray-600" />
+                  <span className="text-gray-700">{translations.download}</span>
+                  <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isDownloadMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isDownloadMenuOpen && (
+                  <div className="absolute bottom-full left-0 mb-2 w-32 rounded-xl shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 z-10 overflow-hidden">
+                    <button
+                      onClick={() => handleDownload('webp')}
+                      className="block w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-rose-600 transition-colors text-left font-medium"
+                    >
+                      WebP
+                    </button>
+                    <button
+                      onClick={() => handleDownload('png')}
+                      className="block w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-rose-600 transition-colors text-left font-medium"
+                    >
+                      PNG
+                    </button>
+                    <button
+                      onClick={() => handleDownload('jpeg')}
+                      className="block w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-rose-600 transition-colors text-left font-medium"
+                    >
+                      JPEG
+                    </button>
+                    <button
+                      onClick={() => handleDownload('ico')}
+                      className="block w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-rose-600 transition-colors text-left font-medium"
+                    >
+                      ICO
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
             <button
               onClick={handleShare}

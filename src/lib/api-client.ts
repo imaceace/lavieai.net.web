@@ -55,11 +55,13 @@ interface Task {
 
 interface GenerationParams {
   prompt: string;
-  negative_prompt?: string;
+  negativePrompt?: string;
   style?: string;
   resolution?: [number, number];
   model?: string;
-  fast_mode?: boolean;
+  fastMode?: boolean;
+  useCase?: string;
+  strength?: number;
 }
 
 interface SubscriptionPlan {
@@ -125,27 +127,36 @@ export const generateApi = {
       credentials: 'include',
       body: JSON.stringify({
         prompt: params.prompt,
-        negative_prompt: params.negative_prompt,
+        negative_prompt: params.negativePrompt,
         style: params.style,
         width: params.resolution?.[0] || 1024,
         height: params.resolution?.[1] || 1024,
         model: params.model || 'basic',
-        fast_mode: params.fast_mode,
+        fast_mode: params.fastMode,
+        use_case: params.useCase,
       }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { message: 'Generation failed' } }));
+      const err = await res.json().catch(() => ({ error: { message: 'Generation failed', code: 'UNKNOWN_ERROR' } }));
+      console.error('[API Client] text-to-image request failed with status', res.status, err);
       const msg = typeof err.error === 'string'
         ? err.error
         : err.error?.message || 'Generation failed';
-      throw new Error(msg);
+      const code = err.error?.code || 'UNKNOWN_ERROR';
+      const errorObj = new Error(msg);
+      (errorObj as any).code = code;
+      throw errorObj;
     }
     const raw = await res.json();
     if (!raw.success || !raw.data) {
+      console.error('[API Client] text-to-image logical failure:', raw.error);
       const msg = typeof raw.error === 'string'
         ? raw.error
         : raw.error?.message || 'Generation failed';
-      throw new Error(msg);
+      const code = raw.error?.code || 'UNKNOWN_ERROR';
+      const errorObj = new Error(msg);
+      (errorObj as any).code = code;
+      throw errorObj;
     }
     return {
       id: raw.data.workId,
@@ -156,9 +167,8 @@ export const generateApi = {
     };
   },
 
-  imageToImage: async (params: GenerationParams & { image: File }): Promise<Task> => {
+  imageToImage: async (params: GenerationParams & { imageUrl: string; imageId?: string }): Promise<Task> => {
     const fingerprint = await getFingerprint();
-    const image_base64 = await fileToDataUrl(params.image);
 
     const res = await fetch(`${API_BASE}/api/generate/image-to-image`, {
       method: 'POST',
@@ -170,13 +180,14 @@ export const generateApi = {
       body: JSON.stringify({
         prompt: params.prompt,
         style: params.style,
-        strength: 0.5,
+        strength: params.strength ?? 0.85,
         model: params.model || 'basic',
-        image_base64,
+        imageUrl: params.imageUrl,
       }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: { message: 'Generation failed' } }));
+      console.error('[API Client] image-to-image request failed with status', res.status, err);
       const msg = typeof err.error === 'string'
         ? err.error
         : err.error?.message || 'Generation failed';
@@ -184,6 +195,7 @@ export const generateApi = {
     }
     const raw = await res.json();
     if (!raw.success || !raw.data) {
+      console.error('[API Client] image-to-image logical failure:', raw.error);
       const msg = typeof raw.error === 'string'
         ? raw.error
         : raw.error?.message || 'Generation failed';
@@ -342,6 +354,38 @@ export const paymentApi = {
     });
     if (!res.ok) throw new Error('Failed to create order');
     return res.json();
+  },
+};
+
+// Upload API
+export const uploadApi = {
+  uploadImage: async (file: File, useCase: string = 'general'): Promise<{ url: string; id: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('useCase', useCase);
+
+    const fp = await getFingerprint();
+
+    const res = await fetch(`${API_BASE}/api/upload`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-Fingerprint': fp,
+      },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: { message: 'Upload failed' } }));
+      throw new Error(err.error?.message || 'Upload failed');
+    }
+
+    const raw = await res.json();
+    if (!raw.success || !raw.data) {
+      throw new Error(raw.error?.message || 'Upload failed');
+    }
+
+    return raw.data;
   },
 };
 

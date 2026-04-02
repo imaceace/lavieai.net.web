@@ -1,6 +1,7 @@
 "use client";
 
 import { Link } from "@/routing";
+import { useToast } from "@/hooks/useToast";
 import { useTranslations } from "next-intl";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useState, useEffect, useRef } from "react";
@@ -11,6 +12,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.lavieai.net';
 
 export function Header() {
   const t = useTranslations("nav");
+  const { addToast } = useToast();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -103,10 +105,10 @@ export function Header() {
         setCredits(data.data?.new_balance ?? 0);
         setCanClaimDaily(false);
       } else {
-        alert(data.message || 'Failed to claim daily credits');
+        addToast(data.message || 'Failed to claim daily credits', 'error');
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to claim daily credits');
+      addToast(error instanceof Error ? error.message : 'Failed to claim daily credits', 'error');
     } finally {
       setClaimingDaily(false);
     }

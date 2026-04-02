@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useUserStore } from "@/stores/userStore";
 import { authApi, userApi } from "@/lib/api-client";
+import { useToast } from "@/hooks/useToast";
 
 type Tab = "overview" | "orders" | "history";
 
@@ -85,6 +86,7 @@ function formatCurrency(amount: number, currency: string): string {
 }
 
 export default function ProfilePage() {
+  const { addToast } = useToast();
   const { user, isLoggedIn: storeIsLoggedIn, isLoading: storeLoading, setUser } = useUserStore();
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [orders, setOrders] = useState<Order[]>([]);
@@ -284,7 +286,7 @@ export default function ProfilePage() {
                           if (success && user) {
                             setUser({ ...user, is_public_default: newValue });
                           } else {
-                            alert("Failed to update setting");
+                            addToast("Failed to update setting", "error");
                           }
                           setUpdatingDefault(false);
                         }}
@@ -415,7 +417,7 @@ export default function ProfilePage() {
                             setWorks(works.map(w => selectedWorks.has(w.id) ? { ...w, is_recommended: 1 } : w));
                             setSelectedWorks(new Set());
                           } else {
-                            alert("Failed to update");
+                            addToast("Failed to update", "error");
                           }
                           setUpdatingWorks(false);
                         }}
@@ -432,7 +434,7 @@ export default function ProfilePage() {
                             setWorks(works.map(w => selectedWorks.has(w.id) ? { ...w, is_recommended: 0 } : w));
                             setSelectedWorks(new Set());
                           } else {
-                            alert("Failed to update");
+                            addToast("Failed to update", "error");
                           }
                           setUpdatingWorks(false);
                         }}
