@@ -94,7 +94,7 @@ export const contactApi = {
     title: string;
     content: string;
   }) =>
-    fetchApi<{ id: string; message: string }>("/contact", {
+    fetchApi<{ id: string; message: string }>("/api/contact", {
       method: "POST",
       body: JSON.stringify(data),
     }),

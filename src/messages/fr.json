@@ -9,7 +9,7 @@
   },
   "gallery": {
     "badge": "Galerie d'Inspiration",
-    "title": "Explorez l'Univers de l'Art IA",
+    "title": "Explorez l'Univers de l'Art de Lavie AI",
     "description": "Chaque œuvre est une rencontre entre l'imagination et les algorithmes. Découvrez ici une source d'inspiration infinie.",
     "searchPlaceholder": "Rechercher par mots-clés ou style...",
     "selectStyle": "Sélectionner un Style",
@@ -21,6 +21,7 @@
     "viewDetails": "Voir les Détails",
     "generateSimilar": "Générer Similaire",
     "generate": "Générer",
+    "viewFullGallery": "Voir la Galerie Complète",
     "loadMore": "Charger plus...",
     "endOfList": "— Fin de la Galerie —",
     "artworkDetails": "Détails de l'Œuvre",
@@ -49,8 +50,8 @@
   },
   "home": {
     "hero": {
-      "subtitle": "✨ Créez des images époustouflantes en quelques secondes",
-      "description": "Rêvez-le. Créez-le. Partagez-le.",
+      "subtitle": "✨ Créez de l'art IA avec Lavie AI Image Generator",
+      "description": "Le meilleur générateur d'images IA gratuit. Rêvez-le. Créez-le avec Lavie AI. Partagez-le.",
       "badges": {
         "free": "100% Gratuit",
         "noLogin": "Sans Inscription",
@@ -73,13 +74,14 @@
       "random": "Magie Lavie",
       "fastMode": "Rapide",
       "loginRequiredTitle": "Connexion requise",
-      "loginRequiredForFastMode": "Veuillez vous connecter à Google pour utiliser le mode rapide et profiter d'une vitesse de génération 5 fois plus rapide.",
+      "loginRequiredForFastMode": "Veuillez vous connecter à Google pour utiliser le Mode Rapide et profiter d'une vitesse de génération 5 fois plus rapide.",
       "generate": "Générer",
-      "generating": "Génération en cours...",
+      "generating": "Génération...",
       "notEnoughCredits": "Pas assez de crédits. Vous avez besoin de {cost} crédits pour générer.",
-      "generationFailed": "La génération a échoué. Veuillez réessayer.",
+      "generationFailed": "Échec de la génération. Veuillez réessayer.",
       "upgradeRequiredTitle": "Mise à niveau requise",
-      "upgradeRequired": "Ce modèle ou cette résolution nécessite un plan premium. Veuillez mettre à niveau pour débloquer plus de fonctionnalités."
+      "upgradeRequired": "Ce modèle ou cette résolution nécessite un forfait premium. Veuillez mettre à niveau pour débloquer plus de fonctionnalités.",
+      "highResNotice": "Générer des résolutions plus élevées nécessite considérablement plus de calculs et de crédits."
     },
     "results": {
       "title": "Image Générée",
@@ -88,52 +90,124 @@
       "upgradeBtn": "Passer Premium"
     },
     "features": {
-      "title": "Pourquoi Choisir Lavie AI",
+      "title": "Pourquoi Choisir Lavie AI Image Generator",
       "free": {
-        "title": "Création Zéro Coût",
-        "desc": "Le premier générateur d'images IA entièrement gratuit au monde. Pas de frais cachés, pas d'abonnement requis."
+        "title": "Générateur d'Images IA Gratuit",
+        "desc": "Le premier générateur d'images IA entièrement gratuit au monde. Pas de frais cachés, pas d'abonnement requis pour créer de l'art IA."
       },
       "quality": {
         "title": "Qualité de Pointe",
-        "desc": "Le routage intelligent sélectionne le modèle optimal pour vos prompts, garantissant une qualité d'image exceptionnelle."
+        "desc": "Le routage intelligent de notre AI image generator sélectionne le modèle optimal pour vos prompts, garantissant une qualité exceptionnelle."
       },
       "understanding": {
-        "title": "Compréhension Avancée du Texte",
-        "desc": "Interprète avec précision des prompts complexes avec de multiples sujets, styles et descriptions."
+        "title": "Texte vers Image Avancé",
+        "desc": "Lavie AI interprète avec précision des prompts complexes avec de multiples sujets, styles et descriptions."
       },
       "speed": {
-        "title": "Génération Ultra-Rapide",
-        "desc": "Un pipeline d'inférence optimisé fournit des résultats en quelques secondes, pas en minutes."
+        "title": "Génération IA Ultra-Rapide",
+        "desc": "Le pipeline d'inférence optimisé de Lavie AI fournit des résultats en quelques secondes, pas en minutes."
       },
       "privacy": {
         "title": "Confidentialité Renforcée",
-        "desc": "Politique de zéro conservation des données. Vos prompts ne sont jamais stockés ni utilisés pour l'entraînement."
+        "desc": "Politique de zéro conservation des données. Vos prompts du AI generator ne sont jamais stockés ni utilisés pour l'entraînement."
       },
       "styles": {
-        "title": "Support Multi-Styles",
-        "desc": "De la photographie réaliste à l'anime, de la peinture à l'huile au cyberpunk — 32 styles à explorer."
+        "title": "Support Multi-Styles IA",
+        "desc": "De la photographie réaliste à l'anime, de la peinture à l'huile au cyberpunk — 32 styles à explorer avec notre générateur."
       }
     },
     "testimonials": {
       "title": "Ce Que Disent Nos Utilisateurs About Lavie AI",
-      "t1": { "text": "Absolument incroyable ! La qualité d'image est stupéfiante et c'est totalement gratuit. J'ai essayé de nombreux générateurs IA mais c'est de loin le meilleur.", "name": "Sarah Chen", "role": "Artiste Numérique" },
-      "t2": { "text": "La variété des styles est exceptionnelle. De l'anime au photoréalisme, il gère tout parfaitement. Mon outil de prédilection pour mes projets créatifs.", "name": "Marcus Webb", "role": "Développeur de Jeux" },
-      "t3": { "text": "Aucune inscription requise et entièrement gratuit ! Parfait pour des expériences rapides et du brainstorming. La vitesse de génération est impressionnante.", "name": "Emily Park", "role": "Responsable Marketing" },
-      "t4": { "text": "Lavie AI a transformé mon flux de travail. L'interface est incroyablement intuitive, et les résultats sont époustouflants à chaque fois.", "name": "David Kim", "role": "Graphiste" },
-      "t5": { "text": "Je n'arrive pas à croire que ce soit gratuit. Le respect du prompt est parfait, capturant même les plus petits détails que je spécifie.", "name": "Laura Martinez", "role": "Illustratrice" },
-      "t6": { "text": "Rapide comme l'éclair ! J'ai généré une douzaine de variations pour ma campagne publicitaire en moins d'une minute.", "name": "James Wilson", "role": "Créateur de Contenu" },
-      "t7": { "text": "Le modèle de style anime est à couper le souffle. Il capture parfaitement l'esthétique que je recherchais.", "name": "Yuki Tanaka", "role": "Mangaka" },
-      "t8": { "text": "Enfin un générateur qui ne cache pas ses meilleures fonctionnalités derrière un mur payant. Lavie AI change la donne.", "name": "Alex Johnson", "role": "Indépendant" },
-      "t9": { "text": "Les contrôles d'éclairage et de composition sont si faciles à utiliser. Fortement recommandé pour l'art conceptuel.", "name": "Sophie Brown", "role": "Artiste Conceptuel" },
-      "t10": { "text": "J'utilise Lavie AI tous les jours pour mes articles de blog. La qualité visuelle fait ressortir mes articles.", "name": "Michael Chang", "role": "Blogueur" },
-      "t11": { "text": "Une interface tellement propre et moderne. C'est un plaisir à utiliser par rapport à d'autres outils encombrés.", "name": "Emma Davis", "role": "Designer UI/UX" },
-      "t12": { "text": "Le style de rendu 3D a l'air incroyablement professionnel. Cela m'a fait gagner des heures de modélisation.", "name": "Oliver Smith", "role": "Artiste 3D" },
-      "t13": { "text": "J'adore la fonction 'Surprenez-moi' ! Elle me donne des idées incroyables quand j'ai un blocage créatif.", "name": "Chloe White", "role": "Directrice Créative" },
-      "t14": { "text": "Vitesse et qualité inégalées. C'est maintenant un élément essentiel de ma boîte à outils de conception.", "name": "Daniel Taylor", "role": "Directeur Artistique" },
-      "t15": { "text": "La fonction de prompt négatif fonctionne parfaitement, me donnant exactement ce que je veux sans le désordre.", "name": "Mia Anderson", "role": "Photographe" },
-      "t16": { "text": "De superbes dégradés, une UX fluide et une génération IA de premier plan. Que demander de plus ?", "name": "Lucas Thomas", "role": "Développeur Web" },
-      "t17": { "text": "Il gère les prompts architecturaux complexes mieux que les alternatives payantes. Vraiment impressionnant.", "name": "Isabella Garcia", "role": "Architecte" },
-      "t18": { "text": "Une ressource fantastique pour le story-board. Cela donne vie à mes scripts instantanément.", "name": "William Martin", "role": "Cinéaste" }
+      "t1": {
+        "text": "Absolument incroyable ! La qualité d'image est stupéfiante et c'est totalement gratuit. J'ai essayé de nombreux générateurs IA mais c'est de loin le meilleur.",
+        "name": "Sarah Chen",
+        "role": "Artiste Numérique"
+      },
+      "t2": {
+        "text": "La variété des styles est exceptionnelle. De l'anime au photoréalisme, il gère tout parfaitement. Mon outil de prédilection pour mes projets créatifs.",
+        "name": "Marcus Webb",
+        "role": "Développeur de Jeux"
+      },
+      "t3": {
+        "text": "Aucune inscription requise et entièrement gratuit ! Parfait pour des expériences rapides et du brainstorming. La vitesse de génération est impressionnante.",
+        "name": "Emily Park",
+        "role": "Responsable Marketing"
+      },
+      "t4": {
+        "text": "Lavie AI a transformé mon flux de travail. L'interface est incroyablement intuitive, et les résultats sont époustouflants à chaque fois.",
+        "name": "David Kim",
+        "role": "Graphiste"
+      },
+      "t5": {
+        "text": "Je n'arrive pas à croire que ce soit gratuit. Le respect du prompt est parfait, capturant même les plus petits détails que je spécifie.",
+        "name": "Laura Martinez",
+        "role": "Illustratrice"
+      },
+      "t6": {
+        "text": "Rapide comme l'éclair ! J'ai généré une douzaine de variations pour ma campagne publicitaire en moins d'une minute.",
+        "name": "James Wilson",
+        "role": "Créateur de Contenu"
+      },
+      "t7": {
+        "text": "Le modèle de style anime est à couper le souffle. Il capture parfaitement l'esthétique que je recherchais.",
+        "name": "Yuki Tanaka",
+        "role": "Mangaka"
+      },
+      "t8": {
+        "text": "Enfin un générateur qui ne cache pas ses meilleures fonctionnalités derrière un mur payant. Lavie AI change la donne.",
+        "name": "Alex Johnson",
+        "role": "Indépendant"
+      },
+      "t9": {
+        "text": "Les contrôles d'éclairage et de composition sont si faciles à utiliser. Fortement recommandé pour l'art conceptuel.",
+        "name": "Sophie Brown",
+        "role": "Artiste Conceptuel"
+      },
+      "t10": {
+        "text": "J'utilise Lavie AI tous les jours pour mes articles de blog. La qualité visuelle fait ressortir mes articles.",
+        "name": "Michael Chang",
+        "role": "Blogueur"
+      },
+      "t11": {
+        "text": "Une interface tellement propre et moderne. C'est un plaisir à utiliser par rapport à d'autres outils encombrés.",
+        "name": "Emma Davis",
+        "role": "Designer UI/UX"
+      },
+      "t12": {
+        "text": "Le style de rendu 3D a l'air incroyablement professionnel. Cela m'a fait gagner des heures de modélisation.",
+        "name": "Oliver Smith",
+        "role": "Artiste 3D"
+      },
+      "t13": {
+        "text": "J'adore la fonction 'Surprenez-moi' ! Elle me donne des idées incroyables quand j'ai un blocage créatif.",
+        "name": "Chloe White",
+        "role": "Directrice Créative"
+      },
+      "t14": {
+        "text": "Vitesse et qualité inégalées. C'est maintenant un élément essentiel de ma boîte à outils de conception.",
+        "name": "Daniel Taylor",
+        "role": "Directeur Artistique"
+      },
+      "t15": {
+        "text": "La fonction de prompt négatif fonctionne parfaitement, me donnant exactement ce que je veux sans le désordre.",
+        "name": "Mia Anderson",
+        "role": "Photographe"
+      },
+      "t16": {
+        "text": "De superbes dégradés, une UX fluide et une génération IA de premier plan. Que demander de plus ?",
+        "name": "Lucas Thomas",
+        "role": "Développeur Web"
+      },
+      "t17": {
+        "text": "Il gère les prompts architecturaux complexes mieux que les alternatives payantes. Vraiment impressionnant.",
+        "name": "Isabella Garcia",
+        "role": "Architecte"
+      },
+      "t18": {
+        "text": "Une ressource fantastique pour le story-board. Cela donne vie à mes scripts instantanément.",
+        "name": "William Martin",
+        "role": "Cinéaste"
+      }
     },
     "useCases": {
       "title": "Découvrir quelque chose de nouveau",
@@ -199,51 +273,112 @@
       }
     },
     "howItWorks": {
-      "title": "Create Art in 3 Simple Steps",
+      "title": "Créez de l'art IA en 3 étapes avec Lavie AI",
       "step1": {
-        "title": "1. Enter your prompt",
-        "desc": "Describe what you want to see. The more details, the better."
+        "title": "1. Entrez votre prompt",
+        "desc": "Décrivez l'image que vous souhaitez voir. Plus il y a de détails, mieux notre AI image generator fonctionne."
       },
       "step2": {
-        "title": "2. Choose a style",
-        "desc": "Select from 30+ artistic styles, or let the AI decide."
+        "title": "2. Choisissez un style",
+        "desc": "Sélectionnez parmi plus de 30 styles artistiques, ou laissez l'IA de Lavie décider."
       },
       "step3": {
-        "title": "3. Generate & Download",
-        "desc": "Get your high-quality image in seconds, ready to use."
+        "title": "3. Générez et Téléchargez",
+        "desc": "Obtenez votre image de haute qualité en quelques secondes, prête à l'emploi."
       }
     },
     "cta": {
       "title": "Prêt à créer votre chef-d'œuvre ?",
-      "desc": "Libérez votre créativité et donnez vie à votre imagination avec Lavie AI.",
-      "button": "Essayer Lavie AI"
+      "desc": "Libérez votre créativité et donnez vie à votre imagination avec Lavie AI Image Generator.",
+      "button": "Essayer Lavie AI Gratuit"
     },
     "seoText": "Lavie AI is a powerful free AI image generator that allows you to transform text into stunning visual art in seconds. Whether you need photorealistic images, anime illustrations, 3D renders, or digital art, our text-to-image generator delivers exceptional quality without any signup required. Create unlimited AI pictures, backgrounds, and assets for your creative projects today.",
     "faq": {
-      "title": "Questions Fréquemment Posées",
+      "title": "Questions Fréquemment Posées sur Lavie AI Image Generator",
+      "subtitle": "Vous avez une autre question ? Contactez-nous à support@LavieAI.net",
       "q1": {
-        "q": "Lavie AI est-il vraiment gratuit ?",
-        "a": "Oui ! Lavie AI est entièrement gratuit. Nous offrons des crédits quotidiens gratuits pour que vous puissiez générer des images sans aucun paiement. Aucune carte de crédit requise."
+        "q": "Lavie AI Image Generator est-il vraiment gratuit ?",
+        "a": "Oui ! Lavie AI Image Generator est entièrement gratuit. Nous offrons des crédits quotidiens gratuits pour que vous puissiez générer de l'art IA et des images sans aucun paiement. Aucune carte de crédit requise."
       },
       "q2": {
-        "q": "Dois-je créer un compte ?",
-        "a": "Aucune connexion n'est requise ! Vous pouvez commencer à générer des images immédiatement. Cependant, la création d'un compte vous permet d'enregistrer votre historique et d'accéder à plus de fonctionnalités."
+        "q": "Dois-je créer un compte pour utiliser le AI Image Generator ?",
+        "a": "Aucune connexion n'est requise pour utiliser Lavie AI ! Vous pouvez commencer à générer des images IA immédiatement. Cependant, la création d'un compte gratuit vous permet d'enregistrer votre historique et d'accéder à plus de fonctionnalités de notre AI generator."
       },
       "q3": {
-        "q": "Quels styles d'images sont disponibles ?",
-        "a": "Nous proposons 32 styles artistiques différents, dont Photoréaliste, Anime, Peinture à l'huile, Aquarelle, Croquis, Rendu 3D, Cyberpunk, Fantasy, et bien d'autres."
+        "q": "Puis-je utiliser les images IA générées commercialement ?",
+        "a": "Oui ! L'art IA et les images que vous générez avec Lavie AI Image Generator peuvent être utilisés à des fins personnelles et commerciales. Vous conservez l'entière propriété des images que vous créez."
       },
       "q4": {
-        "q": "À quelle vitesse puis-je générer une image ?",
-        "a": "Avec le mode Rapide activé, la plupart des images sont générées en quelques secondes. La génération standard prend généralement de 10 à 30 secondes."
+        "q": "Mes données sont-elles gardées privées avec Lavie AI ?",
+        "a": "Pour les utilisateurs inscrits, toutes les images générées sont privées par défaut et stockées en toute sécurité dans votre historique personnel, vous donnant le contrôle total pour les supprimer à tout moment. Les générations d'invités sont publiques et apparaissent sur notre mur de photos pour inspirer les autres. Pour gérer l'espace serveur, nous effaçons périodiquement les anciennes générations. Plus important encore, vos images et prompts ne sont jamais utilisés pour entraîner nos modèles d'IA."
       },
       "q5": {
-        "q": "Puis-je utiliser les images générées commercialement ?",
-        "a": "Oui ! Les images que vous générez avec Lavie AI peuvent être utilisées à des fins personnelles et commerciales. Vous conservez l'entière propriété des images."
+        "q": "Quels modèles d'IA Lavie AI Image Generator utilise-t-il ?",
+        "a": "Lavie AI Image Generator utilise des modèles d'IA de pointe, notamment FLUX.2 (flux-2-pro), Stable Diffusion (stable-diffusion-3.5-large), Qwen-Image et Nano Banana Pro de Google. Notre système sélectionne automatiquement le meilleur modèle de générateur d'images en fonction de votre prompt."
       },
       "q6": {
-        "q": "Mes données sont-elles gardées privées ?",
-        "a": "Absolument. Nous avons une politique de zéro conservation des données. Vos invites ne sont jamais stockées sur nos serveurs et ne sont jamais utilisées pour entraîner des modèles d'IA."
+        "q": "Quels styles d'images IA sont disponibles dans Lavie AI ?",
+        "a": "Lavie AI Image Generator propose 32 styles artistiques différents, dont les scènes photoréalistes, les images de style anime, l'art numérique, les illustrations artistiques, le rendu 3D, l'éclairage cinématique, le cyberpunk, et bien d'autres. Notre AI image generator est constamment mis à jour avec les styles tendance."
+      },
+      "q7": {
+        "q": "À quelle vitesse Lavie AI peut-il générer une image ?",
+        "a": "Avec le mode Rapide activé, notre AI image generator crée la plupart des images en quelques secondes. La génération IA standard prend généralement de 10 à 30 secondes selon la complexité."
+      },
+      "q8": {
+        "q": "Pourquoi y a-t-il parfois des déformations dans les images générées par l'IA ?",
+        "a": "C'est un défi commun pour tous les générateurs d'images IA. Pour améliorer les résultats, utilisez notre fonction 'Prompt Négatif' pour exclure des choses comme 'mauvaise anatomie, doigts supplémentaires'. Vous pouvez également essayer de générer à nouveau."
+      },
+      "q9": {
+        "q": "Comment puis-je donner mon avis ou signaler des problèmes ?",
+        "a": "Vos retours sont les bienvenus ! Vous pouvez contacter notre équipe d'assistance à support@LavieAI.net. Votre contribution nous aide à améliorer et à maintenir le meilleur service gratuit de génération d'images IA."
+      },
+      "q10": {
+        "q": "Quelle est la suite pour Lavie AI ?",
+        "a": "Nous améliorons constamment notre service avec des mises à jour régulières du modèle d'IA et de l'interface utilisateur. Nos projets futurs incluent des applications mobiles et des fonctionnalités créatives supplémentaires, tout en maintenant notre engagement à rester entièrement gratuits."
+      }
+    }
+  },
+  "pricing": {
+    "title": "Choisissez votre forfait",
+    "subtitle": "Commencez gratuitement, mettez à niveau selon vos besoins",
+    "monthly": "Mensuel",
+    "yearly": "Annuel",
+    "save": "Économisez 40%",
+    "mostPopular": "Le plus populaire",
+    "getStarted": "Commencer",
+    "subscribe": "S'abonner",
+    "buyPoints": "Ou acheter des points",
+    "buyPointsDesc": "Achat unique, aucun abonnement requis",
+    "bestValue": "Meilleur rapport qualité-prix",
+    "perPoint": "${price} par point",
+    "buyBtn": "Acheter {points} points",
+    "faqTitle": "Questions Fréquemment Posées",
+    "readyToCreate": "Prêt à créer ?",
+    "readyDesc": "Commencez dès aujourd'hui à générer de l'art IA incroyable avec Lavie AI Image Generator.",
+    "faq": {
+      "q1": {
+        "q": "Que sont les points dans Lavie AI ?",
+        "a": "Les points sont des crédits que vous utilisez pour générer des images avec notre AI image generator. Différentes tailles et niveaux de qualité d'image consomment différentes quantités de points."
+      },
+      "q2": {
+        "q": "Les points non utilisés sont-ils reportés ?",
+        "a": "Non, les points gratuits quotidiens sont réinitialisés à minuit UTC. Les points achetés pour la génération d'images IA sont valables pendant 30 jours à compter de la date d'achat."
+      },
+      "q3": {
+        "q": "Puis-je annuler mon abonnement à tout moment ?",
+        "a": "Oui, vous pouvez annuler votre abonnement Lavie AI à tout moment. Vous continuerez à avoir accès à l'AI image generator jusqu'à la fin de votre période de facturation."
+      },
+      "q4": {
+        "q": "Quels modes de paiement acceptez-vous ?",
+        "a": "Nous acceptons actuellement PayPal pour nos forfaits de générateur IA. D'autres méthodes de paiement seront bientôt disponibles."
+      },
+      "q5": {
+        "q": "Puis-je utiliser les images générées à des fins commerciales ?",
+        "a": "Oui ! Toutes les images générées avec les forfaits payants Lavie AI incluent des droits d'utilisation commerciale complets."
+      },
+      "q6": {
+        "q": "Proposez-vous des remboursements ?",
+        "a": "Nous n'offrons généralement pas de remboursement pour les mois de service partiels. Veuillez vous assurer d'annuler votre abonnement avant le début du prochain cycle de facturation."
       }
     }
   },
@@ -273,5 +408,150 @@
   },
   "footer": {
     "tagline": "Générateur d'Images IA Gratuit"
+  },
+  "homepage": {
+    "textToImage": {
+      "title": "Texte vers Image",
+      "subtitle": "Trouvez l'inspiration et essayez un style"
+    },
+    "imageToImage": {
+      "title": "Image vers Image",
+      "subtitle": "Transformez vos photos instantanément"
+    },
+    "exploreMore": {
+      "title": "Explorer Plus d'Outils",
+      "subtitle": "Tout ce dont vous avez besoin pour le design et la création",
+      "showMore": "Afficher Plus",
+      "showLess": "Afficher Moins"
+    }
+  },
+  "useCases": {
+    "title": {},
+    "createLogo": {
+      "title": "Créer un Logo"
+    },
+    "turnIntoCyborg": {
+      "title": "Transformer en Cyborg"
+    },
+    "createHolidayCard": {
+      "title": "Créer une Carte de Vœux"
+    },
+    "createAlbumCover": {
+      "title": "Créer une Pochette d'Album"
+    },
+    "redecorateMyRoom": {
+      "title": "Redécorer Votre Chambre"
+    },
+    "whatWouldILookLikeAsAKPopStar": {
+      "title": "Devenir une Star de la K-Pop"
+    },
+    "styleMe": {
+      "title": "Styliser Votre Tenue"
+    },
+    "giveUsMatchingOutfit": {
+      "title": "Donnez-nous une tenue assortie",
+      "action": "Essayer de Changer de Tenue",
+      "desc": "Changez de vêtements en gardant les visages intacts."
+    },
+    "meAsTheGirlWithAPearl": {
+      "title": "Devenir La Jeune Fille à la Perle"
+    },
+    "createProfessionalProductPhoto": {
+      "title": "Créer une Photo de Produit"
+    },
+    "createProfessionalJobPhoto": {
+      "title": "Créer un Portrait Professionnel"
+    },
+    "removePeopleInTheBackground": {
+      "title": "Supprimer les personnes en arrière-plan",
+      "action": "Essayer de Supprimer les Personnes"
+    },
+    "ghibliStyle": {
+      "title": "Convertir au Style Ghibli"
+    },
+    "removeWatermark": {
+      "title": "Supprimer le filigrane",
+      "action": "Essayer de Supprimer le Filigrane",
+      "desc": "Nettoyez les images en supprimant textes et logos."
+    },
+    "removeBackground": {
+      "title": "Supprimer le fond",
+      "action": "Essayer de Supprimer le Fond",
+      "desc": "Effacez instantanément les arrière-plans avec l'IA."
+    },
+    "turnIntoClaymationStyle": {
+      "title": "Convertir au style pâte à modeler",
+      "action": "Essayer le Style Pâte à Modeler"
+    },
+    "sketchToReal": {
+      "title": "Croquis vers réel",
+      "action": "Essayer Croquis vers Réel",
+      "desc": "Donnez vie à vos croquis dessinés à la main."
+    },
+    "ps2Retro": {
+      "title": "Transformer en Rétro PS2"
+    },
+    "colorizePhoto": {
+      "title": "Coloriser une Photo N&B"
+    },
+    "cyberpunk": {
+      "title": "Appliquer le Style Cyberpunk"
+    },
+    "restorePhoto": {
+      "title": "Restaurer une Photo Vintage"
+    },
+    "keychain": {
+      "title": "Transformer en Porte-clés"
+    },
+    "upscaleImage": {
+      "desc": "Améliorez la résolution et restaurez les photos floues.",
+      "action": "Essayer l'Upscaler IA"
+    },
+    "turnIntoAnime": {
+      "desc": "Convertissez de vraies photos en style anime.",
+      "action": "Essayer le Filtre Anime"
+    },
+    "pixarStyle": {
+      "title": "Appliquer le Style Pixar"
+    },
+    "gtaStyle": {
+      "title": "Appliquer le Style GTA"
+    },
+    "pixelArt": {
+      "title": "Convertir en Pixel Art"
+    },
+    "pencilSketch": {
+      "title": "Transformer en Croquis au Crayon"
+    },
+    "petRoyalPainting": {
+      "title": "Créer un Portrait Royal d'Animal"
+    },
+    "legoStyle": {
+      "title": "Transformer en Lego"
+    },
+    "ageTransformation": {
+      "title": "Transformer Votre Âge"
+    },
+    "changeHair": {
+      "title": "Changer de Coupe de Cheveux"
+    },
+    "claymation": {
+      "title": "Appliquer le Style Claymation"
+    },
+    "papercraft": {
+      "title": "Transformer en Papercraft"
+    },
+    "watercolor": {
+      "title": "Appliquer le Style Aquarelle"
+    },
+    "zombieStyle": {
+      "title": "Transformer en Zombie"
+    },
+    "turnIntoGundam": {
+      "title": "Se Transformer en Gundam"
+    },
+    "oilPainting": {
+      "title": "Peinture à l'Huile"
+    }
   }
 }

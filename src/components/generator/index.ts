@@ -19,3 +19,5 @@ export { ExampleGallery } from "./ExampleGallery";
 export { TryStyleCards } from "./TryStyleCards";
 export { GalleryShowcase } from "./GalleryShowcase";
 export { GenerationResult } from "./GenerationResult";
+export { InteractiveI2IShowcase } from "./InteractiveI2IShowcase";
+export { FeatureDiscoveryGrid } from "./FeatureDiscoveryGrid";

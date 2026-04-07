@@ -36,18 +36,15 @@ export default function ContactPage() {
     }
 
     try {
-      // TODO: Uncomment when API is ready
-      // const response = await contactApi.submit({
-      //   type: formType,
-      //   name: name || undefined,
-      //   email,
-      //   title,
-      //   content,
-      // });
-      // if (!response.success) throw new Error(response.error?.message);
+      const response = await contactApi.submit({
+        type: formType,
+        name: name || undefined,
+        email,
+        title,
+        content,
+      });
+      if (!response.success) throw new Error(response.error?.message);
 
-      // Simulate success
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       setSuccess(true);
     } catch (err) {
       setError("Failed to send message. Please try again.");

@@ -1,74 +1,56 @@
 "use client";
 
-import { X, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Loader2, X } from "lucide-react";
+import { useUserStore } from "@/stores/userStore";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.lavieai.net';
 
-interface LoginModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title?: string;
-  subtitle?: string;
-}
-
-export function LoginModal({ isOpen, onClose, title, subtitle }: LoginModalProps) {
+export function LoginModal() {
+  const { isLoginModalOpen, closeLoginModal } = useUserStore();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Close on Escape key
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleEsc);
-    return () => window.removeEventListener("keydown", handleEsc);
-  }, [onClose]);
+  if (!isLoginModalOpen) return null;
 
-  if (!isOpen) return null;
-
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setIsLoading(true);
     const returnTo = window.location.href;
-    window.location.href = `${API_BASE}/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`;
+    const loginUrl = `${API_BASE}/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`;
+    window.location.href = loginUrl;
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
-        onClick={onClose}
+        className="absolute inset-0" 
+        onClick={() => !isLoading && closeLoginModal()}
       />
-      
-      {/* Modal */}
-      <div className="relative bg-white dark:bg-stone-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-        <button 
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-stone-800 transition-colors z-10"
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <button
+          onClick={closeLoginModal}
+          disabled={isLoading}
+          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
         >
-          <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+          <X className="w-5 h-5" />
         </button>
 
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent mb-2">
+        <div className="p-8 text-center">
+          <div className="mb-8">
+            <span className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
               Lavie AI
-            </h2>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              {title || "Welcome back"}
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              {subtitle || "Sign in to use all features"}
-            </p>
+            </span>
           </div>
+
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back</h2>
+          <p className="text-gray-500 mb-8">Sign in to continue creating amazing AI art</p>
 
           <button
             onClick={handleGoogleLogin}
             disabled={isLoading}
-            className="w-full flex items-center justify-center gap-3 px-6 py-4 border-2 border-gray-200 dark:border-stone-700 rounded-xl hover:bg-gray-50 dark:hover:bg-stone-800 hover:border-gray-300 dark:hover:border-stone-600 transition-all group disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-3 px-6 py-4 border-2 border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+              <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
@@ -85,16 +67,14 @@ export function LoginModal({ isOpen, onClose, title, subtitle }: LoginModalProps
                 />
                 <path
                   fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
             )}
-            <span className="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-white">
-              Continue with Google
-            </span>
+            <span className="font-medium text-gray-700">Continue with Google</span>
           </button>
 
-          <p className="text-center text-sm text-gray-500 dark:text-gray-500 mt-8">
+          <p className="text-sm text-gray-400 mt-8">
             By continuing, you agree to our Terms and Privacy Policy.
           </p>
         </div>

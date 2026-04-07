@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { Zap, Loader2 } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { authApi, userApi } from "@/lib/api-client";
 import { useToast } from "@/hooks/useToast";
+import { UpgradeModal } from "@/components/auth/UpgradeModal";
 
-type Tab = "overview" | "orders" | "history";
+type Tab = "overview" | "orders" | "history" | "admin";
 
 interface Order {
   id: string;
@@ -45,9 +47,10 @@ interface Work {
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Free",
-  basic: "Basic",
+  basic: "Creator",
   pro: "Pro",
-  ultra: "Ultra",
+  max: "Max",
+  ultra: "Studio",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -99,27 +102,39 @@ export default function ProfilePage() {
   const [selectedWorks, setSelectedWorks] = useState<Set<string>>(new Set());
   const [updatingWorks, setUpdatingWorks] = useState(false);
   const [updatingDefault, setUpdatingDefault] = useState(false);
+  const [galleryFilter, setGalleryFilter] = useState<'all' | 'public' | 'private'>('all');
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [whitelist, setWhitelist] = useState<any[]>([]);
+  const [loadingWhitelist, setLoadingWhitelist] = useState(false);
+  const [adminSearchEmail, setAdminSearchEmail] = useState("");
+  const [adminSearchLoading, setAdminSearchLoading] = useState(false);
+  const [adminSearchResult, setAdminSearchResult] = useState<any>(null);
+
+  // Admin details tabs and pagination
+  const [activeAdminTab, setActiveAdminTab] = useState<"transactions" | "orders" | "works">("transactions");
+  const [adminTransactions, setAdminTransactions] = useState<any[]>([]);
+  const [adminOrders, setAdminOrders] = useState<Order[]>([]);
+  const [adminWorks, setAdminWorks] = useState<Work[]>([]);
+  const [loadingAdminDetails, setLoadingAdminDetails] = useState(false);
+  const [adminPage, setAdminPage] = useState(1);
+  const [adminHasMore, setAdminHasMore] = useState(false);
+  const [adminSelectedWorks, setAdminSelectedWorks] = useState<Set<string>>(new Set());
+  const [adminExtendingWorks, setAdminExtendingWorks] = useState(false);
+
+  const [grantAmount, setGrantAmount] = useState(100);
+  const [grantReason, setGrantReason] = useState("");
+  const [grantDays, setGrantDays] = useState(30);
+  const [granting, setGranting] = useState(false);
 
   const isMember = user?.subscription_type && user.subscription_type !== 'free';
 
   useEffect(() => {
-    async function init() {
-      const me = await authApi.getMe();
-      if (me) {
-        setUser({
-          id: me.id,
-          email: me.email,
-          name: me.name,
-          avatar: me.avatar || "",
-          subscription_type: (me.tier || 'free') as any,
-          credits: me.credits,
-          subscription_expire: me.subscription_expire,
-          is_public_default: me.is_public_default,
-        });
-      }
+    // Rely on Header's getMe call to populate user store
+    // Just stop loading after a short delay if user is not loaded
+    const timer = setTimeout(() => {
       setPageLoading(false);
-    }
-    init();
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -157,6 +172,123 @@ export default function ProfilePage() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab === "admin" && user?.is_admin && whitelist.length === 0) {
+      setLoadingWhitelist(true);
+      import("@/lib/api-client").then(({ whitelistApi }) => {
+        whitelistApi.getList().then((res: any) => {
+          setWhitelist(res.data || []);
+          setLoadingWhitelist(false);
+        }).catch(() => setLoadingWhitelist(false));
+      });
+    }
+  }, [activeTab, user?.is_admin]);
+
+  const handleUpdateWhitelist = async (email: string, status: "pending" | "approved" | "rejected") => {
+    try {
+      const { whitelistApi } = await import("@/lib/api-client");
+      const res = await whitelistApi.updateStatus(email, status);
+      if (res.success) {
+        addToast("Status updated successfully", "success");
+        setWhitelist(whitelist.map(w => w.email === email ? { ...w, status } : w));
+      } else {
+        addToast(res.error?.message || "Update failed", "error");
+      }
+    } catch (e: any) {
+      addToast(e.message || "Update failed", "error");
+    }
+  };
+
+  const handleAdminSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminSearchEmail) return;
+    setAdminSearchLoading(true);
+    try {
+      const { adminApi } = await import("@/lib/api-client");
+      const data = await adminApi.getUserInfo(adminSearchEmail);
+      if (data.success) {
+        setAdminSearchResult(data.data);
+        setActiveAdminTab("transactions");
+        setAdminPage(1);
+      } else {
+        addToast(data.error?.message || "Search failed", "error");
+        setAdminSearchResult(null);
+      }
+    } catch (e: any) {
+      addToast("Search failed", "error");
+      setAdminSearchResult(null);
+    } finally {
+      setAdminSearchLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "admin" && adminSearchResult?.user?.id) {
+      const fetchAdminDetails = async () => {
+        setLoadingAdminDetails(true);
+        try {
+          const { adminApi } = await import("@/lib/api-client");
+          const userId = adminSearchResult.user.id;
+          let data;
+          if (activeAdminTab === "transactions") {
+            data = await adminApi.getTransactions(userId, adminPage, 20);
+            if (data.success) setAdminTransactions(data.data);
+          } else if (activeAdminTab === "orders") {
+            data = await adminApi.getOrders(userId, adminPage, 20);
+            if (data.success) setAdminOrders(data.data);
+          } else if (activeAdminTab === "works") {
+            data = await adminApi.getWorks(userId, adminPage, 20);
+            if (data.success) setAdminWorks(data.data);
+          }
+          if (data?.success) {
+            setAdminHasMore(data.data.length === 20);
+          }
+        } catch (e: any) {
+          addToast("Failed to fetch details", "error");
+        } finally {
+          setLoadingAdminDetails(false);
+        }
+      };
+      fetchAdminDetails();
+    }
+  }, [activeTab, activeAdminTab, adminPage, adminSearchResult?.user?.id]);
+
+  const handleGrantCredits = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminSearchResult?.user?.id) return;
+    
+    if (grantAmount <= 0) {
+      addToast("Amount must be greater than 0", "error");
+      return;
+    }
+    
+    setGranting(true);
+    try {
+      const { adminApi } = await import("@/lib/api-client");
+      const res = await adminApi.grantCredits(adminSearchResult.user.id, grantAmount, grantReason || "Admin manual grant", grantDays);
+      
+      if (res.success && res.data) {
+        addToast(`Successfully granted ${grantAmount} credits`, "success");
+        // Update local state
+        setAdminSearchResult({
+          ...adminSearchResult,
+          user: {
+            ...adminSearchResult.user,
+            credits: res.data.newBalance
+          }
+        });
+        setGrantAmount(100);
+        setGrantReason("");
+      } else {
+        addToast(res.error?.message || "Failed to grant credits", "error");
+      }
+    } catch (err: any) {
+      addToast(err.message || "Failed to grant credits", "error");
+    } finally {
+      setGranting(false);
+    }
+  };
+
   if (pageLoading || storeLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -183,11 +315,15 @@ export default function ProfilePage() {
 
   const activeSubscription = subscriptions.find((s) => s.status === "active");
 
-  const tabs = [
+  const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "orders", label: "Orders" },
     { id: "history", label: "Gallery" },
-  ] as const;
+  ];
+
+  if (user?.is_admin) {
+    tabs.push({ id: "admin", label: "Admin" });
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -267,34 +403,44 @@ export default function ProfilePage() {
             {/* Overview Tab */}
             {activeTab === "overview" && (
               <div className="space-y-6">
-                {isMember && (
-                  <div className="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Public Gallery by Default</h3>
-                      <p className="text-sm text-gray-500">Automatically publish your generated images to the public gallery.</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        className="sr-only peer" 
-                        checked={user?.is_public_default === 1}
-                        disabled={updatingDefault}
-                        onChange={async (e) => {
-                          const newValue = e.target.checked ? 1 : 0;
-                          setUpdatingDefault(true);
-                          const success = await userApi.updatePublicDefault(newValue);
-                          if (success && user) {
-                            setUser({ ...user, is_public_default: newValue });
-                          } else {
-                            addToast("Failed to update setting", "error");
-                          }
-                          setUpdatingDefault(false);
-                        }}
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </label>
+                <div 
+                  className={`bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between ${!isMember ? 'opacity-75' : ''}`}
+                  onClick={(e) => {
+                    if (!isMember) {
+                      e.preventDefault();
+                      setIsUpgradeModalOpen(true);
+                    }
+                  }}
+                >
+                  <div>
+                    <h3 className="font-semibold text-gray-900">
+                      Public Gallery by Default
+                      {!isMember && <span className="ml-2 inline-block px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">Premium Feature</span>}
+                    </h3>
+                    <p className="text-sm text-gray-500">Automatically publish your generated images to the public gallery.</p>
                   </div>
-                )}
+                  <label className={`relative inline-flex items-center ${isMember ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={user?.is_public_default === 1}
+                      disabled={updatingDefault || !isMember}
+                      onChange={async (e) => {
+                        if (!isMember) return;
+                        const newValue = e.target.checked ? 1 : 0;
+                        setUpdatingDefault(true);
+                        const success = await userApi.updatePublicDefault(newValue);
+                        if (success && user) {
+                          setUser({ ...user, is_public_default: newValue });
+                        } else {
+                          addToast("Failed to update setting", "error");
+                        }
+                        setUpdatingDefault(false);
+                      }}
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
                 <div className="flex flex-wrap gap-4">
                   <Link
                     href="/pricing"
@@ -404,10 +550,43 @@ export default function ProfilePage() {
             {activeTab === "history" && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">Generation History</h3>
-                  {isMember && works.length > 0 && (
+                  <div className="flex items-center gap-4">
+                    <h3 className="font-semibold">Generation History</h3>
+                    <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                      {(['all', 'public', 'private'] as const).map(f => (
+                        <button
+                          key={f}
+                          onClick={() => {
+                            setGalleryFilter(f);
+                            setSelectedWorks(new Set());
+                          }}
+                          className={`px-3 py-1 text-xs font-medium rounded-md capitalize transition-colors ${
+                            galleryFilter === f ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {isMember && works.length > 0 && (() => {
+                    const filteredWorks = works.filter(w => galleryFilter === 'all' || (galleryFilter === 'public' ? w.is_recommended === 1 : w.is_recommended === 0));
+                    const isAllSelected = filteredWorks.length > 0 && selectedWorks.size === filteredWorks.length;
+                    return (
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">{selectedWorks.size} selected</span>
+                      <button
+                        onClick={() => {
+                          if (isAllSelected) {
+                            setSelectedWorks(new Set());
+                          } else {
+                            setSelectedWorks(new Set(filteredWorks.map(w => w.id)));
+                          }
+                        }}
+                        className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      >
+                        {isAllSelected ? 'Deselect All' : 'Select All'}
+                      </button>
+                      <span className="text-sm text-gray-500 px-2">{selectedWorks.size} selected</span>
                       <button 
                         disabled={selectedWorks.size === 0 || updatingWorks}
                         onClick={async () => {
@@ -443,7 +622,7 @@ export default function ProfilePage() {
                         Set Private
                       </button>
                     </div>
-                  )}
+                  )})()}
                 </div>
                 {loadingWorks ? (
                   <div className="text-center py-8 text-gray-400">Loading...</div>
@@ -451,9 +630,14 @@ export default function ProfilePage() {
                   <div className="text-center py-8 text-gray-400">
                     No generations yet. <Link href="/" className="text-indigo-600 hover:underline">Start creating</Link>
                   </div>
-                ) : (
+                ) : (() => {
+                  const filteredWorks = works.filter(w => galleryFilter === 'all' || (galleryFilter === 'public' ? w.is_recommended === 1 : w.is_recommended === 0));
+                  if (filteredWorks.length === 0) {
+                     return <div className="text-center py-8 text-gray-400">No {galleryFilter} generations found.</div>;
+                  }
+                  return (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {works.map((work) => (
+                    {filteredWorks.map((work) => (
                       <div 
                         key={work.id} 
                         className={`group relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${selectedWorks.has(work.id) ? 'border-indigo-500' : 'border-transparent'}`}
@@ -496,12 +680,370 @@ export default function ProfilePage() {
                       </div>
                     ))}
                   </div>
-                )}
+                  );
+                })()}
+              </div>
+            )}
+            {/* Admin Tab */}
+            {activeTab === "admin" && user?.is_admin && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-xl shadow-sm border p-6">
+                  <h2 className="text-xl font-bold mb-4">Beta Waitlist</h2>
+                  {loadingWhitelist ? (
+                    <p className="text-gray-500">Loading...</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 rounded-tl-lg">Email</th>
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3">Date</th>
+                            <th className="px-4 py-3 rounded-tr-lg">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {whitelist.map((w, idx) => (
+                            <tr key={idx} className="border-b last:border-0">
+                              <td className="px-4 py-3">{w.email}</td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${w.status === 'approved' ? 'bg-green-100 text-green-700' : w.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                  {w.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-500">{formatDate(w.created_at)}</td>
+                              <td className="px-4 py-3 flex gap-2">
+                                {w.status !== 'approved' && (
+                                  <button onClick={() => handleUpdateWhitelist(w.email, 'approved')} className="text-green-600 hover:text-green-800 text-xs font-medium">Approve</button>
+                                )}
+                                {w.status !== 'rejected' && (
+                                  <button onClick={() => handleUpdateWhitelist(w.email, 'rejected')} className="text-red-600 hover:text-red-800 text-xs font-medium">Reject</button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {whitelist.length === 0 && (
+                            <tr>
+                              <td colSpan={4} className="px-4 py-8 text-center text-gray-500">No waitlist entries found.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border p-6">
+                  <h2 className="text-xl font-bold mb-4">User Search (Subscriptions & Credits)</h2>
+                  <form onSubmit={handleAdminSearch} className="flex gap-3 mb-6">
+                    <input 
+                      type="email" 
+                      value={adminSearchEmail} 
+                      onChange={e => setAdminSearchEmail(e.target.value)} 
+                      placeholder="Enter user email" 
+                      className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={adminSearchLoading}
+                      className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {adminSearchLoading ? "Searching..." : "Search"}
+                    </button>
+                  </form>
+
+                  {adminSearchResult && (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="grid md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-sm text-gray-500">Name / Email</p>
+                          <p className="font-medium">{adminSearchResult.user.name} ({adminSearchResult.user.email})</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Credits Balance</p>
+                          <p className="font-medium text-indigo-600">{adminSearchResult.user.credits ?? adminSearchResult.user.points}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Current Plan</p>
+                          <p className="font-medium capitalize">{adminSearchResult.user.subscription_type || 'free'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Member Since</p>
+                          <p className="font-medium">{formatDate(adminSearchResult.user.created_at)}</p>
+                        </div>
+                      </div>
+
+                      {/* Grant Credits Form */}
+                      <div className="mt-6 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                        <h3 className="font-bold text-indigo-900 dark:text-indigo-200 mb-3 flex items-center gap-2">
+                          <Zap size={16} className="text-indigo-600" />
+                          Manual Credit Grant
+                        </h3>
+                        <form onSubmit={handleGrantCredits} className="flex flex-col sm:flex-row gap-3 items-end">
+                          <div className="w-full sm:w-auto">
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Amount</label>
+                            <input 
+                              type="number" 
+                              min="1" 
+                              required
+                              value={grantAmount}
+                              onChange={e => setGrantAmount(parseInt(e.target.value))}
+                              className="w-full sm:w-24 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                          </div>
+                          <div className="w-full sm:w-auto flex-1">
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
+                            <input 
+                              type="text" 
+                              required
+                              placeholder="e.g. Compensation for bug"
+                              value={grantReason}
+                              onChange={e => setGrantReason(e.target.value)}
+                              className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                          </div>
+                          <div className="w-full sm:w-auto">
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Valid Days</label>
+                            <input 
+                              type="number" 
+                              min="1" 
+                              required
+                              value={grantDays}
+                              onChange={e => setGrantDays(parseInt(e.target.value))}
+                              className="w-full sm:w-24 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                          </div>
+                          <button 
+                            type="submit" 
+                            disabled={granting}
+                            className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
+                          >
+                            {granting ? <Loader2 size={16} className="animate-spin" /> : "Grant"}
+                          </button>
+                        </form>
+                      </div>
+
+                      <div className="mt-6">
+                        <div className="border-b mb-4">
+                          <nav className="flex gap-4">
+                            {[
+                              { id: 'transactions', label: 'Transactions', count: adminSearchResult.stats?.transactions },
+                              { id: 'orders', label: 'Orders', count: adminSearchResult.stats?.orders },
+                              { id: 'works', label: 'Works', count: adminSearchResult.stats?.works },
+                            ].map(tab => (
+                              <button
+                                key={tab.id}
+                                onClick={() => {
+                                  setActiveAdminTab(tab.id as any);
+                                  setAdminPage(1);
+                                  setAdminSelectedWorks(new Set());
+                                }}
+                                className={`pb-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                                  activeAdminTab === tab.id
+                                    ? "border-indigo-600 text-indigo-600"
+                                    : "border-transparent text-gray-500 hover:text-gray-700"
+                                }`}
+                              >
+                                {tab.label}
+                                {tab.count !== undefined && (
+                                  <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full text-[10px]">
+                                    {tab.count}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </nav>
+                        </div>
+
+                        <div className="min-h-[200px]">
+                          {loadingAdminDetails ? (
+                            <div className="flex items-center justify-center py-10">
+                              <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          ) : (
+                            <>
+                              {activeAdminTab === 'transactions' && (
+                                <div className="space-y-2">
+                                  {adminTransactions.length > 0 ? adminTransactions.map((tx, idx) => (
+                                    <div key={idx} className="flex justify-between items-center text-sm bg-white p-3 rounded-lg border shadow-sm">
+                                      <div>
+                                        <p className="font-medium capitalize">{tx.action_type?.replace(/_/g, ' ')}</p>
+                                        <p className="text-gray-400 text-xs">{tx.created_at}</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className={`font-bold ${tx.change_amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                          {tx.change_amount > 0 ? '+' : ''}{tx.change_amount}
+                                        </p>
+                                        <p className="text-gray-400 text-xs">Bal: {tx.balance_after}</p>
+                                      </div>
+                                    </div>
+                                  )) : <p className="text-center py-10 text-gray-400">No transactions found.</p>}
+                                </div>
+                              )}
+
+                              {activeAdminTab === 'orders' && (
+                                <div className="overflow-x-auto">
+                                  {adminOrders.length > 0 ? (
+                                    <table className="w-full text-sm text-left bg-white rounded-lg border">
+                                      <thead className="bg-gray-50 border-b">
+                                        <tr>
+                                          <th className="px-4 py-2">ID</th>
+                                          <th className="px-4 py-2">Type</th>
+                                          <th className="px-4 py-2">Amount</th>
+                                          <th className="px-4 py-2">Status</th>
+                                          <th className="px-4 py-2">Date</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {adminOrders.map((order, idx) => (
+                                          <tr key={idx} className="border-b last:border-0">
+                                            <td className="px-4 py-2 text-xs font-mono">{order.id.slice(0, 8)}...</td>
+                                            <td className="px-4 py-2 capitalize">{order.type}</td>
+                                            <td className="px-4 py-2">{formatCurrency(order.amount, order.currency)}</td>
+                                            <td className={`px-4 py-2 font-medium ${STATUS_COLORS[order.status] || 'text-gray-600'}`}>{order.status}</td>
+                                            <td className="px-4 py-2 text-gray-500">{formatDate(order.created_at)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  ) : <p className="text-center py-10 text-gray-400">No orders found.</p>}
+                                </div>
+                              )}
+
+                              {activeAdminTab === 'works' && (
+                                <div>
+                                  {adminWorks.length > 0 && (
+                                    <div className="flex items-center gap-2 mb-4 bg-white p-2 rounded-lg border shadow-sm">
+                                      <button
+                                        onClick={() => {
+                                          if (adminSelectedWorks.size === adminWorks.length) {
+                                            setAdminSelectedWorks(new Set());
+                                          } else {
+                                            setAdminSelectedWorks(new Set(adminWorks.map(w => w.id)));
+                                          }
+                                        }}
+                                        className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                                      >
+                                        {adminSelectedWorks.size === adminWorks.length ? 'Deselect All' : 'Select All'}
+                                      </button>
+                                      <span className="text-sm text-gray-500 px-2">{adminSelectedWorks.size} selected</span>
+                                      
+                                      <button 
+                                        disabled={adminSelectedWorks.size === 0 || adminExtendingWorks}
+                                        onClick={async () => {
+                                          const days = parseInt(window.prompt("Enter days to extend:", "30") || "0");
+                                          if (!days || days <= 0) return;
+                                          
+                                          setAdminExtendingWorks(true);
+                                          try {
+                                            const { adminApi } = await import("@/lib/api-client");
+                                            const res = await adminApi.extendWorks(Array.from(adminSelectedWorks), days);
+                                            if (res.success) {
+                                              addToast(res.message || "Success", "success");
+                                              // Refresh current page
+                                              const userId = adminSearchResult.user.id;
+                                              const data = await adminApi.getWorks(userId, adminPage, 20);
+                                              if (data.success) setAdminWorks(data.data);
+                                              setAdminSelectedWorks(new Set());
+                                            } else {
+                                              addToast((res as any).error?.message || res.message || "Failed to extend", "error");
+                                            }
+                                          } catch (e) {
+                                            addToast("Failed to extend", "error");
+                                          } finally {
+                                            setAdminExtendingWorks(false);
+                                          }
+                                        }}
+                                        className="px-3 py-1.5 text-sm bg-green-50 text-green-600 rounded hover:bg-green-100 disabled:opacity-50 ml-auto"
+                                      >
+                                        {adminExtendingWorks ? 'Extending...' : 'Extend Expiration'}
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {adminWorks.length > 0 ? adminWorks.map((work, idx) => {
+                                      const isExpired = (work as any).expire_at ? ((work as any).expire_at * 1000 < Date.now()) : false;
+                                      return (
+                                      <div 
+                                        key={idx} 
+                                        onClick={() => {
+                                          const newSet = new Set(adminSelectedWorks);
+                                          if (newSet.has(work.id)) newSet.delete(work.id);
+                                          else newSet.add(work.id);
+                                          setAdminSelectedWorks(newSet);
+                                        }}
+                                        className={`relative group rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${adminSelectedWorks.has(work.id) ? 'border-indigo-500' : 'border-transparent'}`}
+                                      >
+                                        <div className="absolute top-2 left-2 z-10">
+                                          <input 
+                                            type="checkbox" 
+                                            checked={adminSelectedWorks.has(work.id)} 
+                                            readOnly 
+                                            className="w-4 h-4 text-indigo-600 rounded border-gray-300 pointer-events-none"
+                                          />
+                                        </div>
+                                        <div className="aspect-square bg-gray-100">
+                                          {work.result_url ? (
+                                            <img src={work.thumbnail_url || work.result_url} alt="" className={`w-full h-full object-cover ${isExpired ? 'opacity-50 grayscale' : ''}`} />
+                                          ) : (
+                                            <div className="w-full h-full flex items-center justify-center">🎨</div>
+                                          )}
+                                        </div>
+                                        <div className="p-2 bg-white text-xs space-y-1">
+                                          <p className="truncate font-medium" title={work.prompt}>{work.prompt}</p>
+                                          <p className="text-gray-500 flex justify-between">
+                                            <span>{formatDate(work.created_at)}</span>
+                                            <span className={isExpired ? 'text-red-500' : 'text-green-500'}>
+                                              {((work as any).expire_at) ? formatDate((work as any).expire_at) : 'Never'}
+                                            </span>
+                                          </p>
+                                          <p className="text-[10px] text-gray-400 truncate" title={work.result_url}>URL: {work.result_url}</p>
+                                        </div>
+                                      </div>
+                                    )}) : <p className="col-span-full text-center py-10 text-gray-400">No works found.</p>}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Pagination Controls */}
+                              {(adminPage > 1 || adminHasMore) && (
+                                <div className="flex justify-center items-center gap-4 mt-6 pt-4 border-t">
+                                  <button
+                                    disabled={adminPage === 1 || loadingAdminDetails}
+                                    onClick={() => setAdminPage(p => p - 1)}
+                                    className="px-4 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+                                  >
+                                    Previous
+                                  </button>
+                                  <span className="text-sm text-gray-600">Page {adminPage}</span>
+                                  <button
+                                    disabled={!adminHasMore || loadingAdminDetails}
+                                    onClick={() => setAdminPage(p => p + 1)}
+                                    className="px-4 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+                                  >
+                                    Next
+                                  </button>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+      <UpgradeModal 
+        isOpen={isUpgradeModalOpen} 
+        onClose={() => setIsUpgradeModalOpen(false)} 
+        title="Premium Feature"
+        subtitle="Upgrade to a paid plan to use the 'Public Gallery by Default' feature and keep your generations private."
+      />
     </div>
   );
 }

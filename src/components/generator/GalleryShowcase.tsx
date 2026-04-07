@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Image } from "lucide-react";
 import Link from "next/link";
-import { galleryApi } from "@/lib/api-client";
+import { useTranslations } from 'next-intl';
 
 interface GalleryItem {
   id: string;
@@ -44,23 +44,30 @@ interface GalleryShowcaseProps {
 }
 
 export function GalleryShowcase({ onUsePrompt, sort }: GalleryShowcaseProps) {
+  const t = useTranslations("gallery");
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const params = sort === 'popular' ? { limit: 16, sort: 'popular' } : { limit: 16 };
-    galleryApi.getRecommended(params)
-      .then(data => {
-        if (data.images && data.images.length > 0) {
-          setGalleryItems(data.images);
-        }
-      })
-      .catch(() => {
-        // Use empty on error
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+    // 动态判断是否为移动端，以决定请求的图片数量
+    const isMobile = window.innerWidth < 768;
+    const limit = isMobile ? 6 : 12; // Changed from 16 to 12 for 3 rows
+    const params = sort === 'popular' ? { limit, sort: 'popular' } : { limit };
+    
+    import("@/lib/api-client").then(({ galleryApi }) => {
+      galleryApi.getRecommended(params)
+        .then(data => {
+          if (data.images && data.images.length > 0) {
+            setGalleryItems(data.images);
+          }
+        })
+        .catch(() => {
+          // Use empty on error
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    });
   }, [sort]);
 
   return (
@@ -71,19 +78,12 @@ export function GalleryShowcase({ onUsePrompt, sort }: GalleryShowcaseProps) {
           <h3 className="font-semibold" style={{ color: 'var(--gen-text)' }}>Gallery</h3>
           <span className="text-sm" style={{ color: 'var(--gen-text-muted)' }}>See what you can create with Lavie AI</span>
         </div>
-        <Link
-          href="/gallery"
-          className="text-sm text-indigo-500 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-medium flex items-center gap-1"
-        >
-          View More
-          <span>→</span>
-        </Link>
       </div>
 
       {/* Gallery grid - 4 columns on desktop */}
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
             <div key={i} className="bg-[var(--gen-button-bg)] rounded-xl aspect-square animate-pulse" />
           ))}
         </div>
@@ -91,7 +91,7 @@ export function GalleryShowcase({ onUsePrompt, sort }: GalleryShowcaseProps) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {(() => {
             const maxRecommendedLevel = Math.max(0, ...galleryItems.map(i => i.recommended_level || 0));
-            return galleryItems.map((item) => {
+            return galleryItems.map((item, index) => {
               const style = item.style || "illustration";
               const emoji = styleEmojis[style] || "🎨";
               const label = styleLabels[style] || style;
@@ -151,6 +151,28 @@ export function GalleryShowcase({ onUsePrompt, sort }: GalleryShowcaseProps) {
       {galleryItems.length === 0 && !isLoading && (
         <div className="text-center py-8 text-gray-500">
           No featured items yet
+        </div>
+      )}
+
+      {/* View Full Gallery Button */}
+      {!isLoading && galleryItems.length > 0 && (
+        <div className="mt-8 flex justify-center">
+          <a
+            href="/gallery"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-8 py-3 rounded-full font-bold shadow-sm transition-all hover:scale-105 hover:shadow-md flex items-center gap-2"
+            style={{ 
+              background: 'var(--gen-input-bg)',
+              color: 'var(--gen-text)',
+              border: '1px solid var(--gen-border)'
+            }}
+          >
+            {t('viewFullGallery')}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </a>
         </div>
       )}
     </div>

@@ -7,8 +7,10 @@ import {
   TryStyleCards,
   GalleryShowcase,
   GenerationResult,
+  InteractiveI2IShowcase,
+  FeatureDiscoveryGrid,
 } from "@/components/generator";
-import { LoginModal } from "@/components/auth/LoginModal";
+import { useUserStore } from "@/stores/userStore";
 import { UpgradeModal } from "@/components/auth/UpgradeModal";
 import { X, UploadCloud, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
@@ -86,10 +88,12 @@ export default function Home() {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [style, setStyle] = useState<string | null>("none");
   const [resolution, setResolution] = useState<[number, number]>([1024, 1024]);
+  const [quality, setQuality] = useState<1 | 2 | 4>(1);
   const [color, setColor] = useState<string | null>("none");
   const [lighting, setLighting] = useState<string | null>("none");
   const [composition, setComposition] = useState<string | null>("none");
   const [model, setModel] = useState<string>("basic");
+  const [strength, setStrength] = useState<number | undefined>(undefined);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [result, setResult] = useState<{ imageUrl: string } | null>(null);
@@ -102,12 +106,11 @@ export default function Home() {
 
   // User points state
   const [userCredits, setUserCredits] = useState<number | null>(null);
-  const [user, setUser] = useState<any>(null); // To store user details for checking tier
 
   // Generator extra state
   const [fastMode, setFastMode] = useState(false);
   const [showNegativePrompt, setShowNegativePrompt] = useState(false);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const { user, isLoginModalOpen, openLoginModal, closeLoginModal } = useUserStore();
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [upgradeModalTitle, setUpgradeModalTitle] = useState("");
   const [upgradeModalSubtitle, setUpgradeModalSubtitle] = useState("");
@@ -153,22 +156,16 @@ export default function Home() {
   }, [prompt, colorOptions, lightingOptions, compositionOptions, styleOptions, color, lighting, composition, style]);
 
   useEffect(() => {
-    // Fetch user info and credits on mount
-    authApi.getMe().then(u => {
-      setUser(u);
-      if (u) {
-        setUserCredits(u.credits);
-        setFastMode(true); // Default to Fast Mode for logged-in users
-      } else {
-        setUserCredits(null);
-        setFastMode(false); // Guests cannot use Fast Mode
-      }
-    }).catch(() => {
-      setUser(null);
+    if (user) {
+      setUserCredits(user.credits);
+      setFastMode(true);
+    } else {
       setUserCredits(null);
       setFastMode(false);
-    });
+    }
+  }, [user]);
 
+  useEffect(() => {
     // Fetch generation options from API (styles, colors, etc.)
     configApi.getGenerationOptions().then(options => {
       if (options) {
@@ -241,12 +238,19 @@ export default function Home() {
     if (model === 'basic') {
       return fastMode ? 4 : 0;
     }
+    
+    const [width, height] = resolution || [1024, 1024];
+    const finalResolution = [width * quality, height * quality];
+    const pixels = finalResolution[0] * finalResolution[1];
+    const is4K = pixels > 2048 * 2048;
+    const is2K = pixels > 1024 * 1024 && pixels <= 2048 * 2048;
+
     const generationCosts: Record<string, number> = {
-      "pro": 6,
-      "max": 120,
-      "ultra": 160
+      pro: is4K ? 30 : (is2K ? 20 : 15),
+      max: is4K ? 54 : (is2K ? 36 : 24),
+      ultra: is4K ? 108 : (is2K ? 81 : 54)
     };
-    return generationCosts[model] || 10;
+    return generationCosts[model] || 15;
   };
   const generationCost = getGenerationCost();
 
@@ -292,25 +296,40 @@ export default function Home() {
 
     try {
       let task;
+      const finalResolution: [number, number] = [resolution[0] * quality, resolution[1] * quality];
+
+      // Reset any previous daily limit warnings
+      const resHeaders = new Headers();
+      
+      const onResponse = (res: Response) => {
+        if (res.headers.get('X-Daily-Limit-Warning') === 'true') {
+          // Show soft warning without interrupting generation
+          addToast('You are approaching your daily limit of 20 free generations.', 'info');
+        }
+      };
+
       if (referenceImage) {
         task = await generateApi.imageToImage({
           prompt: finalPrompt,
           negativePrompt: showNegativePrompt ? negativePrompt : undefined,
           style: style || undefined,
-          resolution,
+          resolution: finalResolution,
           model: model,
           fastMode: fastMode,
           imageUrl: referenceImage.url,
           imageId: referenceImage.id,
+          useCase: activeUseCase !== 'general' ? activeUseCase : undefined,
+          strength: strength,
         });
       } else {
         task = await generateApi.textToImage({
           prompt: finalPrompt,
           negativePrompt: showNegativePrompt ? negativePrompt : undefined,
           style: style || undefined,
-          resolution,
+          resolution: finalResolution,
           model: model,
           fastMode: fastMode,
+          useCase: activeUseCase !== 'general' ? activeUseCase : undefined,
         });
       }
 
@@ -328,14 +347,17 @@ export default function Home() {
       if (completedTask.result_url) {
         setResult({ imageUrl: completedTask.result_url });
         // Refresh credits
-        const credits = await userApi.getPoints();
-        setUserCredits(credits?.credits ?? null);
+        const userProfile = await authApi.getMe();
+        if (userProfile) {
+          useUserStore.getState().setUser(userProfile as any);
+          setUserCredits(userProfile.credits);
+        }
       }
     } catch (error) {
       console.error("Generation error:", error);
       
       const errorCode = (error as any).code;
-      if (errorCode === 'RESOLUTION_LIMIT' || errorCode === 'UPGRADE_REQUIRED') {
+      if (errorCode === 'RESOLUTION_LIMIT' || errorCode === 'UPGRADE_REQUIRED' || errorCode === 'DAILY_LIMIT_EXCEEDED') {
         setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
         setUpgradeModalSubtitle(error instanceof Error ? error.message : t('generator.upgradeRequired'));
         setIsUpgradeModalOpen(true);
@@ -362,6 +384,49 @@ export default function Home() {
     setStyle(styleId);
     setPrompt(examplePrompt);
     // Scroll to generator section
+    setTimeout(() => {
+      const generatorSection = document.getElementById('generator');
+      if (generatorSection) {
+        generatorSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
+  const handleSelectUseCase = (useCaseData: any) => {
+    const params = useCaseData.params;
+    const requiredTier = useCaseData.requiredTier || 'free';
+    
+    const TIER_WEIGHT: Record<string, number> = {
+      free: 0,
+      basic: 1,
+      pro: 2,
+      max: 3,
+      ultra: 4,
+    };
+    
+    const currentWeight = TIER_WEIGHT[(user?.tier || 'free').toLowerCase()] || 0;
+    const requiredWeight = TIER_WEIGHT[requiredTier] || 0;
+
+    if (requiredWeight > currentWeight) {
+      setUpgradeModalTitle('Premium Feature');
+      setUpgradeModalSubtitle(`The "${useCaseData.tabLabel || t('useCases.' + useCaseData.id + '.title')}" feature requires a ${requiredTier.toUpperCase()} plan or higher. Please upgrade to unlock.`);
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+
+    setPrompt(params.prompt || "");
+    if (params.negativePrompt) setNegativePrompt(params.negativePrompt);
+    if (params.style) setStyle(params.style);
+    if (params.resolution) setResolution(params.resolution);
+    if (params.useCase) setActiveUseCase(params.useCase);
+    if (params.strength !== undefined) setStrength(params.strength);
+    
+    // Auto-switch to Image to Image mode if the use case requires it
+    if (useCaseData.id !== 'general' && !referenceImage) {
+      // In a real app, you might want to show a placeholder or prompt the user to upload an image first
+      addToast('Please upload a reference image to use this feature.', 'info');
+    }
+
     setTimeout(() => {
       const generatorSection = document.getElementById('generator');
       if (generatorSection) {
@@ -457,42 +522,6 @@ export default function Home() {
     }
   };
 
-  const handleSelectUseCase = (params: any) => {
-    if (params.prompt) setPrompt(params.prompt);
-    if (params.style) setStyle(params.style);
-    if (params.resolution) setResolution(params.resolution);
-    if (params.color) setColor(params.color);
-    if (params.lighting) setLighting(params.lighting);
-    if (params.composition) setComposition(params.composition);
-    
-    if (params.negativePrompt) {
-      setNegativePrompt(params.negativePrompt);
-      setShowNegativePrompt(true);
-    } else {
-      setNegativePrompt("");
-      setShowNegativePrompt(false);
-    }
-
-    if (params.id) setActiveUseCase(params.id);
-
-    // Trigger file upload dialog automatically for all use cases to encourage img2img
-    if (!referenceImage) {
-      fileInputRef.current?.click();
-    }
-
-    // Update timestamp to override sniffing
-    lastPromptEditTime.current = Date.now();
-    lastDropdownEditTime.current = Date.now() + 100; // make dropdown edits win
-
-    // Scroll to generator section
-    setTimeout(() => {
-      const generatorSection = document.getElementById('generator');
-      if (generatorSection) {
-        generatorSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 100);
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -583,6 +612,38 @@ export default function Home() {
           "@type": "Answer",
           "text": t('faq.q6.a')
         }
+      },
+      {
+        "@type": "Question",
+        "name": t('faq.q7.q'),
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": t('faq.q7.a')
+        }
+      },
+      {
+        "@type": "Question",
+        "name": t('faq.q8.q'),
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": t('faq.q8.a')
+        }
+      },
+      {
+        "@type": "Question",
+        "name": t('faq.q9.q'),
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": t('faq.q9.a')
+        }
+      },
+      {
+        "@type": "Question",
+        "name": t('faq.q10.q'),
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": t('faq.q10.a')
+        }
       }
     ]
   };
@@ -593,14 +654,14 @@ export default function Home() {
       <Script id="faq-jsonld" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       {/* Hero Section */}
       <section className="py-10 md:py-16 px-4" style={{ background: 'var(--gen-bg)' }}>
-        <div className="container mx-auto text-center max-w-4xl">
+        <div className="container mx-auto text-center max-w-6xl">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 tracking-tight bg-gradient-to-r from-violet-600 via-rose-500 to-amber-500 bg-clip-text text-transparent">
             Lavie AI Image Generator
           </h1>
-          <p className="text-xl md:text-2xl font-semibold max-w-2xl mx-auto mb-3 flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 via-rose-500 to-amber-500 bg-clip-text text-transparent animate-gradient bg-[length:200%_200%]">
+          <p className="text-xl md:text-2xl font-semibold max-w-4xl mx-auto mb-3 flex flex-wrap items-center justify-center gap-2 bg-gradient-to-r from-violet-600 via-rose-500 to-amber-500 bg-clip-text text-transparent animate-gradient bg-[length:200%_200%]">
             {t('hero.subtitle')}
           </p>
-          <p className="text-lg md:text-xl font-medium max-w-2xl mx-auto mb-8 bg-gradient-to-r from-violet-600 via-rose-500 to-amber-500 bg-clip-text text-transparent animate-gradient bg-[length:200%_200%]">
+          <p className="text-lg md:text-xl font-medium max-w-4xl mx-auto mb-8 bg-gradient-to-r from-violet-600 via-rose-500 to-amber-500 bg-clip-text text-transparent animate-gradient bg-[length:200%_200%]">
             {t('hero.description')}
           </p>
           {/* Promise Badges */}
@@ -627,7 +688,7 @@ export default function Home() {
 
       {/* Generator Section */}
       <section id="generator" className="pt-6 pb-12 md:pt-8 md:pb-16 px-4" style={{ background: 'var(--gen-bg)' }}>
-        <div className="container mx-auto max-w-5xl">
+        <div className="container mx-auto max-w-6xl">
           {/* Generator Card with gradient border */}
           <div className="p-[2px] rounded-2xl"
             style={{
@@ -805,6 +866,27 @@ export default function Home() {
                     }
                   />
 
+                  {/* Quality */}
+                  {model !== 'basic' && (
+                    <DropdownSelector
+                      value={quality.toString()}
+                      onChange={(val) => {
+                        if (val) setQuality(parseInt(val) as 1 | 2 | 4);
+                      }}
+                      options={[
+                        { id: "1", label: "Standard (1K)", icon: null },
+                        { id: "2", label: "High (2K)", icon: null },
+                        { id: "4", label: "Ultra (4K)", icon: null },
+                      ]}
+                      placeholder="Standard (1K)"
+                      icon={
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                        </svg>
+                      }
+                    />
+                  )}
+
                   {/* Style */}
                   <DropdownSelector
                     value={style}
@@ -859,6 +941,18 @@ export default function Home() {
                   />
                 </div>
 
+                {/* Resolution Notice */}
+                {quality > 1 && model !== 'basic' && (
+                  <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 px-3 py-1.5 rounded-md flex items-center gap-1.5 mb-2 w-full max-w-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                    {t('generator.highResNotice') || 'Generating higher resolutions requires significantly more compute and credits.'}
+                  </div>
+                )}
+
                 {/* Row 2: Clear, Random, Model, Fast Mode, Generate */}
                 <div className="flex flex-wrap gap-2 items-center">
                   {/* Clear */}
@@ -872,9 +966,10 @@ export default function Home() {
                       setColor("none");
                       setLighting("none");
                       setComposition("none");
+                      setQuality(1);
                     }}
                     className="px-4 h-10 text-sm font-medium rounded-full transition-colors disabled:opacity-50 generator-button"
-                    disabled={!prompt && !negativePrompt && style === "none" && color === "none" && lighting === "none" && composition === "none"}
+                    disabled={!prompt && !negativePrompt && style === "none" && color === "none" && lighting === "none" && composition === "none" && quality === 1}
                   >
                     {t('generator.clear')}
                   </button>
@@ -893,7 +988,7 @@ export default function Home() {
                     value={model}
                     onChange={(val) => {
                       if (val) {
-                        if ((val === 'max' || val === 'ultra') && (!user || user.tier === 'free')) {
+                        if ((val === 'max' || val === 'ultra') && (!user || user.subscription_type === 'free')) {
                           setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
                           setUpgradeModalSubtitle(t('generator.upgradeRequired'));
                           setIsUpgradeModalOpen(true);
@@ -903,12 +998,12 @@ export default function Home() {
                       }
                     }}
                     options={[
-                      { id: "basic", label: "LavieAI Basic(0+ credits)" },
-                      { id: "pro", label: "LavieAI Pro(6+ credits)" },
-                      { id: "max", label: "LavieAI Max(120+ credits)" },
-                      { id: "ultra", label: "LavieAI ultra(160+ credits)" },
+                      { id: "basic", label: "Lavie AI Basic" },
+                      { id: "pro", label: "Lavie AI Pro" },
+                      { id: "max", label: "Lavie AI Max" },
+                      { id: "ultra", label: "Lavie AI Ultra" },
                     ]}
-                    placeholder="LavieAI Basic(0+ credits)"
+                    placeholder="Lavie AI Basic"
                     hideClearOption={true}
                   />
 
@@ -917,7 +1012,7 @@ export default function Home() {
                     type="button"
                     onClick={() => {
                       if (!user) {
-                        setIsLoginModalOpen(true);
+                        openLoginModal();
                         return;
                       }
                       setFastMode(!fastMode);
@@ -967,7 +1062,7 @@ export default function Home() {
       {/* Results Display Area — shown when generation is complete */}
       {result && (
         <section className="pb-16 px-4">
-          <div className="container mx-auto max-w-5xl">
+          <div className="container mx-auto max-w-6xl">
             {/* Bordered results frame */}
             <div className="p-[2px] rounded-2xl mb-6"
               style={{
@@ -1017,315 +1112,54 @@ export default function Home() {
         </section>
       )}
       
-      {/* Gallery Section */}
-      <section className="py-12 px-4" style={{ background: 'var(--gen-input-bg)' }}>
+      {/* Text To Image Section */}
+      <section className="py-16 px-4" style={{ background: 'var(--gen-input-bg)' }}>
         <div className="container mx-auto max-w-6xl">
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-bold mb-3" style={{ color: 'var(--gen-text)' }}>
+              {t('homepage.textToImage.title')}
+            </h2>
+            <span className="text-base" style={{ color: 'var(--gen-text-muted)' }}>
+              {t('homepage.textToImage.subtitle')}
+            </span>
+          </div>
+          
+          <div className="mb-12">
+            <TryStyleCards onSelectStyle={handleSelectStyle} />
+          </div>
+          
           <GalleryShowcase onUsePrompt={handleUsePrompt} />
         </div>
       </section>
 
-      {/* Try a Style Section */}
-      <section className="py-12 px-4" style={{ background: 'var(--gen-bg)' }}>
+      {/* Image To Image & Feature Discovery Section */}
+      <section className="py-16 px-4" style={{ background: 'var(--gen-bg)' }}>
         <div className="container mx-auto max-w-6xl">
-          <TryStyleCards onSelectStyle={handleSelectStyle} />
-        </div>
-      </section>
-
-      {/* Use Cases Section */}
-      <section className="py-16 px-4" style={{ background: 'var(--gen-input-bg)' }}>
-        <div className="container mx-auto max-w-6xl">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold" style={{ color: 'var(--gen-text)' }}>{t('useCases.title')}</h2>
+          {/* Main H2 for the entire Image to Image suite */}
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-bold mb-3" style={{ color: 'var(--gen-text)' }}>
+              {t('homepage.imageToImage.title')}
+            </h2>
+            <span className="text-base" style={{ color: 'var(--gen-text-muted)' }}>
+              {t('homepage.imageToImage.subtitle')}
+            </span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {[
-              
-              {
-                id: "removeWatermark",
-                titleKey: "useCases.removeWatermark.title",
-                image: "/images/quick-i2i/remove-watermark.webp",
-                params: {
-                  id: "removeWatermark",
-                  prompt: "Clean image, perfect quality, no watermarks, no text, no logos, restored, clear, identical to original but clean",
-                  style: "photorealistic",
-                  resolution: [1024, 1024],
-                  lighting: "natural",
-                  negativePrompt: "watermark, text, logo, signature, letters, words, copyright, messy"
-                }
-              },
-               {
-                id: "giveUsMatchingOutfit",
-                titleKey: "useCases.giveUsMatchingOutfit.title",
-                image: "/images/quick-i2i/give-us-a-matching-outfit.webp",
-                params: {
-                  id: "giveUsMatchingOutfit",
-                  prompt: "A cute couple walking a dog in a park, wearing matching aesthetic outfits, autumn leaves, romantic atmosphere, cinematic lighting",
-                  style: "photorealistic",
-                  resolution: [1344, 756],
-                  lighting: "golden-hour",
-                  negativePrompt: "deformed faces, extra limbs, messy background"
-                }
-              },
-              {
-                id: "removeBackground",
-                titleKey: "useCases.removeBackground.title",
-                image: "/images/quick-i2i/remove-background.webp",
-                params: {
-                  id: "removeBackground",
-                  prompt: "Subject completely isolated on a pure solid white background, clean cutout edges, studio lighting, no background scenery, product photography style",
-                  style: "commercial",
-                  resolution: [1024, 1024],
-                  lighting: "studio",
-                  negativePrompt: "background scenery, messy background, dark background, shadow, room, outdoor"
-                }
-              },
-              {
-                id: "removePeopleInTheBackground",
-                titleKey: "useCases.removePeopleInTheBackground.title",
-                image: "/images/quick-i2i/remove-people-in-the-background.webp",
-                params: {
-                  id: "removePeopleInTheBackground",
-                  prompt: "Clean and pure original background, completely empty, no people, no humans, identical to the original environment but without any characters, pure scenery",
-                  style: "photorealistic",
-                  resolution: [1024, 1024],
-                  lighting: "natural",
-                  negativePrompt: "people, person, human, crowd, figures, silhouettes, text, blurry"
-                }
-              },
-              
-              {
-                id: "ghibliStyle",
-                titleKey: "useCases.ghibliStyle.title",
-                image: "/images/quick-i2i/convert-to-ghibli-style.webp",
-                params: {
-                  id: "ghibliStyle",
-                  prompt: "Studio Ghibli style animation art, Hayao Miyazaki, vibrant colors, anime masterpiece, highly detailed, beautiful scenery, 2d animation",
-                  style: "anime",
-                  resolution: [1024, 1024],
-                  lighting: "natural",
-                  color: "vibrant",
-                  negativePrompt: "photorealistic, 3d, cg, deformed, poorly drawn, ugly, realistic"
-                }
-              },
-              {
-                id: "turnIntoClaymationStyle",
-                titleKey: "useCases.turnIntoClaymationStyle.title",
-                image: "/images/quick-i2i/turn-into-claymation-style.webp",
-                params: {
-                  id: "turnIntoClaymationStyle",
-                  prompt: "Cute claymation style, 3D clay render, Popmart blind box toy style, smooth plastic and clay texture, Pixar style, adorable, soft studio lighting, octane render",
-                  style: "3d-render",
-                  resolution: [1024, 1024],
-                  lighting: "soft",
-                  negativePrompt: "realistic, photorealistic, 2d, flat, drawing, sketch, ugly, deformed"
-                }
-              },
-              {
-                id: "sketchToReal",
-                titleKey: "useCases.sketchToReal.title",
-                image: "/images/quick-i2i/sketch-to-real.webp",
-                params: {
-                  id: "sketchToReal",
-                  prompt: "Highly detailed photorealistic render, highly finished, professional photography, realistic textures, ray tracing, unreal engine 5, masterpiece",
-                  style: "photorealistic",
-                  resolution: [1024, 1024],
-                  lighting: "natural",
-                  negativePrompt: "sketch, drawing, lines, outline, uncolored, flat, 2d, cartoon, anime"
-                }
-              },
-              {
-                id: "ps2Retro",
-                titleKey: "useCases.ps2Retro.title",
-                image: "/images/quick-i2i/ps2-retro.webp",
-                params: {
-                  id: "ps2Retro",
-                  prompt: "Early 2000s PS2 game graphics, low poly 3D render, retro video game aesthetic, vintage CGI, PlayStation 2 style, slightly pixelated",
-                  style: "retro",
-                  resolution: [1024, 1024],
-                  lighting: "dramatic",
-                  negativePrompt: "high poly, realistic, highly detailed, modern graphics, 8k, photorealistic"
-                }
-              },
-              {
-                id: "colorizePhoto",
-                titleKey: "useCases.colorizePhoto.title",
-                image: "/images/quick-i2i/colorize-photo.webp",
-                params: {
-                  id: "colorizePhoto",
-                  prompt: "Perfectly colorized historical photo, natural realistic skin tones, vibrant and accurate colors, highly detailed, restored photography",
-                  style: "photorealistic",
-                  resolution: [1024, 1024],
-                  lighting: "natural",
-                  negativePrompt: "black and white, monochrome, grayscale, sepia, faded, desaturated, unrealistic colors"
-                }
-              },
-              {
-                id: "cyberpunk",
-                titleKey: "useCases.cyberpunk.title",
-                image: "/images/quick-i2i/cyberpunk.webp",
-                params: {
-                  id: "cyberpunk",
-                  prompt: "Cyberpunk style, futuristic city neon lights, dark sci-fi atmosphere, glowing blue and pink neon, Blade Runner aesthetic, highly detailed concept art",
-                  style: "cyberpunk",
-                  resolution: [1024, 1024],
-                  lighting: "dramatic",
-                  negativePrompt: "daylight, natural, realistic, boring, simple, flat, low contrast"
-                }
-              },
-              {
-                id: "createHolidayCard",
-                titleKey: "useCases.createHolidayCard.title",
-                image: "/images/quick-i2i/create-a-holiday-card.webp",
-                params: {
-                  id: "createHolidayCard",
-                  prompt: "A beautiful holiday greeting card design, festive decorations, warm cozy atmosphere, highly detailed illustration, 4k",
-                  style: "illustration",
-                  resolution: [1024, 1024],
-                  color: "warm",
-                  lighting: "soft",
-                  negativePrompt: "text, letters, words, messy, blurry"
-                }
-              },
-              {
-                id: "createAlbumCover",
-                titleKey: "useCases.createAlbumCover.title",
-                image: "/images/quick-i2i/create-an-album-cover.webp",
-                params: {
-                  id: "createAlbumCover",
-                  prompt: "An artistic vinyl album cover, abstract surrealism, retro aesthetic, bold typography space, moody cinematic lighting",
-                  style: "digital-art",
-                  resolution: [1024, 1024],
-                  color: "vibrant",
-                  lighting: "dramatic",
-                  negativePrompt: "text, letters, boring, plain, low quality"
-                }
-              },
-              {
-                id: "redecorateMyRoom",
-                titleKey: "useCases.redecorateMyRoom.title",
-                image: "/images/quick-i2i/redecorate-my-room.webp",
-                params: {
-                  id: "redecorateMyRoom",
-                  prompt: "Modern cozy bedroom interior design, minimalist furniture, large windows with sunlight, indoor plants, architectural photography",
-                  style: "interior",
-                  resolution: [1344, 756],
-                  lighting: "natural",
-                  composition: "wide",
-                  negativePrompt: "messy, cluttered, distorted, deformed furniture"
-                }
-              },
-              {
-                id: "whatWouldILookLikeAsAKPopStar",
-                titleKey: "useCases.whatWouldILookLikeAsAKPopStar.title",
-                image: "/images/quick-i2i/what-would-i-look-like-as-a-k-pop-star.webp",
-                params: {
-                  id: "whatWouldILookLikeAsAKPopStar",
-                  prompt: "A glamorous K-Pop idol portrait, stage lighting, stylish stage outfit, perfect makeup, highly detailed face, professional photography",
-                  style: "portrait",
-                  resolution: [768, 1344],
-                  lighting: "studio",
-                  negativePrompt: "ugly, deformed, blurry, bad anatomy"
-                }
-              },
-              {
-                id: "styleMe",
-                titleKey: "useCases.styleMe.title",
-                image: "/images/quick-i2i/style-me.webp",
-                params: {
-                  id: "styleMe",
-                  prompt: "Fashion editorial photography, a model wearing trendy high-end streetwear, urban background, elegant pose, Vogue style",
-                  style: "fashion",
-                  resolution: [768, 1344],
-                  lighting: "soft",
-                  negativePrompt: "bad proportions, missing limbs, bad anatomy"
-                }
-              },
-             
-              {
-                id: "meAsTheGirlWithAPearl",
-                titleKey: "useCases.meAsTheGirlWithAPearl.title",
-                image: "/images/quick-i2i/me-as-the-girl-with-a-pearl.webp",
-                params: {
-                  id: "meAsTheGirlWithAPearl",
-                  prompt: "A portrait of a modern girl styled like 'Girl with a Pearl Earring', classical oil painting style, chiaroscuro lighting, masterpiece",
-                  style: "oil-painting",
-                  resolution: [896, 1152],
-                  lighting: "dramatic",
-                  negativePrompt: "modern clothes, bad anatomy, poorly drawn face"
-                }
-              },
-              {
-                id: "createProfessionalProductPhoto",
-                titleKey: "useCases.createProfessionalProductPhoto.title",
-                image: "/images/quick-i2i/create-a-professional-product-photo.webp",
-                params: {
-                  id: "createProfessionalProductPhoto",
-                  prompt: "Professional commercial photography of a premium product, floating on a sleek pedestal, clean background, studio lighting, 8k",
-                  style: "commercial",
-                  resolution: [1024, 1024],
-                  lighting: "studio",
-                  negativePrompt: "text, watermark, blurry, low quality"
-                }
-              },
-              {
-                id: "createProfessionalJobPhoto",
-                titleKey: "useCases.createProfessionalJobPhoto.title",
-                image: "/images/quick-i2i/create-a-professional-job-photo.webp",
-                params: {
-                  id: "createProfessionalJobPhoto",
-                  prompt: "A professional corporate headshot, business attire, neutral background, soft friendly smile, LinkedIn profile picture style",
-                  style: "portrait",
-                  resolution: [1024, 1024],
-                  lighting: "soft",
-                  negativePrompt: "casual clothes, messy hair, bad lighting"
-                }
-              },
-              {
-                id: "restorePhoto",
-                titleKey: "useCases.restorePhoto.title",
-                image: "/images/quick-i2i/restore-photo.webp",
-                params: {
-                  id: "restorePhoto",
-                  prompt: "A highly detailed, perfectly restored vintage photograph, sepia tone, sharp focus, historical attire, elegant portrait",
-                  style: "analog-film",
-                  resolution: [896, 1152],
-                  lighting: "soft",
-                  negativePrompt: "scratches, dust, noise, torn, damaged, blurry, modern"
-                }
-              },
-              {
-                id: "keychain",
-                titleKey: "useCases.keychain.title",
-                image: "/images/quick-i2i/keychain.webp",
-                params: {
-                  id: "keychain",
-                  prompt: "A cute 3D rendered keychain of a dog wearing red goggles, standing on a wooden table, metallic ring attached, octane render, soft lighting",
-                  style: "3d-render",
-                  resolution: [1024, 1024],
-                  lighting: "studio",
-                  negativePrompt: "2d, flat, realistic photo, messy background"
-                }
-              }
-            ].map((useCase) => (
-              <div 
-                key={useCase.id}
-                className="group flex items-center gap-4 p-3 rounded-2xl cursor-pointer transition-all hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-[var(--gen-border)]"
-                onClick={() => handleSelectUseCase(useCase.params)}
-              >
-                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 relative">
-                  <img 
-                    src={useCase.image} 
-                    alt={t(useCase.titleKey as any)} 
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                </div>
-                <div className="flex-1 font-semibold text-sm md:text-base leading-snug" style={{ color: 'var(--gen-text)' }}>
-                  {t(useCase.titleKey as any)}
-                </div>
-              </div>
-            ))}
+          
+          {/* Top 6 Interactive Showcase */}
+          <InteractiveI2IShowcase onSelectUseCase={handleSelectUseCase} />
+          
+          {/* Divider & Sub-heading for more tools (Visual only, no SEO weight) */}
+          <div className="mt-20 mb-8 flex items-center justify-between">
+            <span className="text-2xl font-bold block" style={{ color: 'var(--gen-text)' }}>
+              {t('homepage.exploreMore.title')}
+            </span>
           </div>
+          <p className="mb-8 text-base" style={{ color: 'var(--gen-text-muted)' }}>
+            {t('homepage.exploreMore.subtitle')}
+          </p>
+          
+          {/* Long-tail SEO Grid */}
+          <FeatureDiscoveryGrid onSelectUseCase={handleSelectUseCase} />
         </div>
       </section>
 
@@ -1337,10 +1171,12 @@ export default function Home() {
             {/* Feature 1 */}
             <div className="p-6 rounded-2xl shadow-lg border transition-shadow"
               style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)', boxShadow: 'var(--gen-border)' }}>
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'rgba(34, 197, 94, 0.1)' }}>
-                <span className="text-2xl">💰</span>
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(34, 197, 94, 0.1)' }}>
+                  <span className="text-2xl">💰</span>
+                </div>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--gen-text)' }}>{t('features.free.title')}</h3>
               </div>
-              <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--gen-text)' }}>{t('features.free.title')}</h3>
               <p className="text-sm" style={{ color: 'var(--gen-text-muted)' }}>
                 {t('features.free.desc')}
               </p>
@@ -1349,10 +1185,12 @@ export default function Home() {
             {/* Feature 2 */}
             <div className="p-6 rounded-2xl shadow-lg border transition-shadow"
               style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)', boxShadow: 'var(--gen-border)' }}>
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'rgba(139, 92, 246, 0.1)' }}>
-                <span className="text-2xl">✨</span>
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(139, 92, 246, 0.1)' }}>
+                  <span className="text-2xl">✨</span>
+                </div>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--gen-text)' }}>{t('features.quality.title')}</h3>
               </div>
-              <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--gen-text)' }}>{t('features.quality.title')}</h3>
               <p className="text-sm" style={{ color: 'var(--gen-text-muted)' }}>
                 {t('features.quality.desc')}
               </p>
@@ -1361,10 +1199,12 @@ export default function Home() {
             {/* Feature 3 */}
             <div className="p-6 rounded-2xl shadow-lg border transition-shadow"
               style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)', boxShadow: 'var(--gen-border)' }}>
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'rgba(59, 130, 246, 0.1)' }}>
-                <span className="text-2xl">📝</span>
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(59, 130, 246, 0.1)' }}>
+                  <span className="text-2xl">📝</span>
+                </div>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--gen-text)' }}>{t('features.understanding.title')}</h3>
               </div>
-              <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--gen-text)' }}>{t('features.understanding.title')}</h3>
               <p className="text-sm" style={{ color: 'var(--gen-text-muted)' }}>
                 {t('features.understanding.desc')}
               </p>
@@ -1548,73 +1388,22 @@ export default function Home() {
       {/* FAQ Section */}
       <section className="py-16 px-4" style={{ background: 'var(--gen-input-bg)' }}>
         <div className="container mx-auto max-w-6xl">
-          <h2 className="text-3xl font-bold text-center mb-10" style={{ color: 'var(--gen-text)' }}>{t('faq.title')}</h2>
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold mb-4" style={{ color: 'var(--gen-text)' }}>{t('faq.title')}</h2>
+            <p className="text-sm" style={{ color: 'var(--gen-text-muted)' }}>{t('faq.subtitle')}</p>
+          </div>
           <div className="grid md:grid-cols-2 gap-4">
-            {/* FAQ 1 */}
-            <details className="group rounded-xl border" style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}>
-              <summary className="flex items-center justify-between p-5 cursor-pointer font-medium" style={{ color: 'var(--gen-text)' }}>
-                <span>{t('faq.q1.q')}</span>
-                <span style={{ color: '#8b5cf6' }} className="transition-transform group-open:rotate-180 flex-shrink-0 ml-4">▼</span>
-              </summary>
-              <div className="px-5 pb-5 text-sm" style={{ color: 'var(--gen-text-muted)' }}>
-                {t('faq.q1.a')}
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+              <div key={`faq-${i}`} className="rounded-xl border p-4" style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}>
+                <h3 className="font-medium mb-2 flex items-start gap-2" style={{ color: 'var(--gen-text)' }}>
+                  <span style={{ color: '#8b5cf6' }}>{i}.</span>
+                  <span>{t(`faq.q${i}.q` as any)}</span>
+                </h3>
+                <div className="text-sm pl-5" style={{ color: 'var(--gen-text-muted)' }}>
+                  {t(`faq.q${i}.a` as any)}
+                </div>
               </div>
-            </details>
-
-            {/* FAQ 2 */}
-            <details className="group rounded-xl border" style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}>
-              <summary className="flex items-center justify-between p-5 cursor-pointer font-medium" style={{ color: 'var(--gen-text)' }}>
-                <span>{t('faq.q2.q')}</span>
-                <span style={{ color: '#8b5cf6' }} className="transition-transform group-open:rotate-180 flex-shrink-0 ml-4">▼</span>
-              </summary>
-              <div className="px-5 pb-5 text-sm" style={{ color: 'var(--gen-text-muted)' }}>
-                {t('faq.q2.a')}
-              </div>
-            </details>
-
-            {/* FAQ 3 */}
-            <details className="group rounded-xl border" style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}>
-              <summary className="flex items-center justify-between p-5 cursor-pointer font-medium" style={{ color: 'var(--gen-text)' }}>
-                <span>{t('faq.q3.q')}</span>
-                <span style={{ color: '#8b5cf6' }} className="transition-transform group-open:rotate-180 flex-shrink-0 ml-4">▼</span>
-              </summary>
-              <div className="px-5 pb-5 text-sm" style={{ color: 'var(--gen-text-muted)' }}>
-                {t('faq.q3.a')}
-              </div>
-            </details>
-
-            {/* FAQ 4 */}
-            <details className="group rounded-xl border" style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}>
-              <summary className="flex items-center justify-between p-5 cursor-pointer font-medium" style={{ color: 'var(--gen-text)' }}>
-                <span>{t('faq.q4.q')}</span>
-                <span style={{ color: '#8b5cf6' }} className="transition-transform group-open:rotate-180 flex-shrink-0 ml-4">▼</span>
-              </summary>
-              <div className="px-5 pb-5 text-sm" style={{ color: 'var(--gen-text-muted)' }}>
-                {t('faq.q4.a')}
-              </div>
-            </details>
-
-            {/* FAQ 5 */}
-            <details className="group rounded-xl border" style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}>
-              <summary className="flex items-center justify-between p-5 cursor-pointer font-medium" style={{ color: 'var(--gen-text)' }}>
-                <span>{t('faq.q5.q')}</span>
-                <span style={{ color: '#8b5cf6' }} className="transition-transform group-open:rotate-180 flex-shrink-0 ml-4">▼</span>
-              </summary>
-              <div className="px-5 pb-5 text-sm" style={{ color: 'var(--gen-text-muted)' }}>
-                {t('faq.q5.a')}
-              </div>
-            </details>
-
-            {/* FAQ 6 */}
-            <details className="group rounded-xl border" style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}>
-              <summary className="flex items-center justify-between p-5 cursor-pointer font-medium" style={{ color: 'var(--gen-text)' }}>
-                <span>{t('faq.q6.q')}</span>
-                <span style={{ color: '#8b5cf6' }} className="transition-transform group-open:rotate-180 flex-shrink-0 ml-4">▼</span>
-              </summary>
-              <div className="px-5 pb-5 text-sm" style={{ color: 'var(--gen-text-muted)' }}>
-                {t('faq.q6.a')}
-              </div>
-            </details>
+            ))}
           </div>
         </div>
       </section>
@@ -1647,13 +1436,6 @@ export default function Home() {
           </button>
         </div>
       </section>
-
-      <LoginModal 
-        isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
-        title={t('generator.loginRequiredTitle')}
-        subtitle={t('generator.loginRequiredForFastMode')}
-      />
 
       <UpgradeModal
         isOpen={isUpgradeModalOpen}

@@ -41,6 +41,8 @@ interface User {
   subscription_expire?: number;
   created_at?: number;
   is_public_default?: number;
+  isWhitelisted?: boolean;
+  is_admin?: boolean;
 }
 
 interface Task {
@@ -53,7 +55,7 @@ interface Task {
   created_at: number;
 }
 
-interface GenerationParams {
+export interface GenerationParams {
   prompt: string;
   negativePrompt?: string;
   style?: string;
@@ -93,9 +95,17 @@ export const authApi = {
       const res = await fetch(`${API_BASE}/api/auth/me`, {
         credentials: 'include',
       });
-      if (!res.ok) return null;
+      // Important: don't clear user if it's a server/network error
+      if (!res.ok) {
+        if (res.status === 401) {
+          return null; // Explicitly unauthorized
+        }
+        throw new Error(`API Error ${res.status}`); // Network/Server error, keep existing state if possible
+      }
+      
       const data = await res.json();
       if (!data.success || !data.data) return null;
+      
       const u = data.data;
       return {
         id: u.id,
@@ -107,23 +117,119 @@ export const authApi = {
         subscription_expire: u.subscription_expire,
         created_at: u.created_at,
         is_public_default: u.is_public_default,
+        isWhitelisted: u.isWhitelisted,
+        is_admin: u.is_admin,
       };
-    } catch {
-      return null;
+    } catch (e) {
+      console.error("[authApi.getMe] Failed to fetch user profile", e);
+      throw e; // Let caller decide what to do
     }
   },
 };
 
+// Whitelist API
+export const whitelistApi = {
+  join: async (email: string) => {
+    const res = await fetch(`${API_BASE}/api/whitelist/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+      credentials: "include",
+    });
+    return res.json();
+  },
+  getList: async () => {
+    const res = await fetch(`${API_BASE}/api/whitelist`, {
+      method: "GET",
+      credentials: "include",
+    });
+    return res.json();
+  },
+  updateStatus: async (email: string, status: "pending" | "approved" | "rejected") => {
+    const res = await fetch(`${API_BASE}/api/whitelist/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, status }),
+      credentials: "include",
+    });
+    return res.json();
+  },
+};
+
+// Admin API
+export const adminApi = {
+  getUserInfo: async (email: string) => {
+    const res = await fetch(`${API_BASE}/api/admin/user/info?email=${encodeURIComponent(email)}`, {
+      method: "GET",
+      credentials: "include",
+    });
+    return res.json();
+  },
+  getTransactions: async (userId: string, page = 1, limit = 20) => {
+    const res = await fetch(`${API_BASE}/api/admin/user/transactions?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
+      method: "GET",
+      credentials: "include",
+    });
+    return res.json();
+  },
+  getOrders: async (userId: string, page = 1, limit = 20) => {
+    const res = await fetch(`${API_BASE}/api/admin/user/orders?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
+      method: "GET",
+      credentials: "include",
+    });
+    return res.json();
+  },
+  getWorks: async (userId: string, page = 1, limit = 20) => {
+    const res = await fetch(`${API_BASE}/api/admin/user/works?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
+      method: "GET",
+      credentials: "include",
+    });
+    return res.json();
+  },
+  extendWorks: async (workIds: string[], extendDays: number): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/works/extend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ workIds, extendDays })
+      });
+      return res.json();
+    } catch {
+      return { success: false, message: 'Network error' };
+    }
+  },
+
+  grantCredits: async (userId: string, amount: number, reason: string, expiresInDays: number): Promise<{ success: boolean; data?: { newBalance: number }; error?: { message: string } }> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/credits/grant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId, amount, reason, expiresInDays })
+      });
+      return res.json();
+    } catch (e) {
+      return { success: false, error: { message: (e as Error).message || 'Network error' } };
+    }
+  }
+};
+
 // Generation API
 export const generateApi = {
-  textToImage: async (params: GenerationParams): Promise<Task> => {
+  textToImage: async (params: GenerationParams, onResponse?: (res: Response) => void, turnstileToken?: string): Promise<Task> => {
     const fingerprint = await getFingerprint();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Fingerprint': fingerprint,
+    };
+    if (turnstileToken) {
+      headers['X-Turnstile-Token'] = turnstileToken;
+    }
+
     const res = await fetch(`${API_BASE}/api/generate/text-to-image`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'X-Fingerprint': fingerprint,
-      },
+      headers,
       credentials: 'include',
       body: JSON.stringify({
         prompt: params.prompt,
@@ -136,13 +242,28 @@ export const generateApi = {
         use_case: params.useCase,
       }),
     });
+    
+    if (onResponse) onResponse(res);
+    
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: { message: 'Generation failed', code: 'UNKNOWN_ERROR' } }));
       console.error('[API Client] text-to-image request failed with status', res.status, err);
+      
+      const code = err.error?.code || 'UNKNOWN_ERROR';
+      // Handle Turnstile Challenge
+      if (code === 'CHALLENGE_REQUIRED' && !turnstileToken) {
+        const { useTurnstileStore } = await import('@/stores/turnstileStore');
+        try {
+          const newToken = await useTurnstileStore.getState().requestChallenge();
+          return generateApi.textToImage(params, onResponse, newToken);
+        } catch (challengeErr) {
+          throw challengeErr;
+        }
+      }
+
       const msg = typeof err.error === 'string'
         ? err.error
         : err.error?.message || 'Generation failed';
-      const code = err.error?.code || 'UNKNOWN_ERROR';
       const errorObj = new Error(msg);
       (errorObj as any).code = code;
       throw errorObj;
@@ -167,31 +288,54 @@ export const generateApi = {
     };
   },
 
-  imageToImage: async (params: GenerationParams & { imageUrl: string; imageId?: string }): Promise<Task> => {
+  imageToImage: async (params: GenerationParams & { imageUrl: string; imageId?: string }, onResponse?: (res: Response) => void, turnstileToken?: string): Promise<Task> => {
     const fingerprint = await getFingerprint();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Fingerprint': fingerprint,
+    };
+    if (turnstileToken) {
+      headers['X-Turnstile-Token'] = turnstileToken;
+    }
 
     const res = await fetch(`${API_BASE}/api/generate/image-to-image`, {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Fingerprint': fingerprint,
-      },
+      headers,
       body: JSON.stringify({
         prompt: params.prompt,
         style: params.style,
-        strength: params.strength ?? 0.85,
+        strength: params.strength ?? 0.5,
         model: params.model || 'basic',
         imageUrl: params.imageUrl,
+        useCase: params.useCase,
       }),
     });
+    
+    if (onResponse) onResponse(res);
+    
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { message: 'Generation failed' } }));
+      const err = await res.json().catch(() => ({ error: { message: 'Generation failed', code: 'UNKNOWN_ERROR' } }));
       console.error('[API Client] image-to-image request failed with status', res.status, err);
+
+      const code = err.error?.code || 'UNKNOWN_ERROR';
+      // Handle Turnstile Challenge
+      if (code === 'CHALLENGE_REQUIRED' && !turnstileToken) {
+        const { useTurnstileStore } = await import('@/stores/turnstileStore');
+        try {
+          const newToken = await useTurnstileStore.getState().requestChallenge();
+          return generateApi.imageToImage(params, onResponse, newToken);
+        } catch (challengeErr) {
+          throw challengeErr;
+        }
+      }
+
       const msg = typeof err.error === 'string'
         ? err.error
         : err.error?.message || 'Generation failed';
-      throw new Error(msg);
+      const errorObj = new Error(msg);
+      (errorObj as any).code = code;
+      throw errorObj;
     }
     const raw = await res.json();
     if (!raw.success || !raw.data) {
@@ -199,7 +343,10 @@ export const generateApi = {
       const msg = typeof raw.error === 'string'
         ? raw.error
         : raw.error?.message || 'Generation failed';
-      throw new Error(msg);
+      const code = raw.error?.code || 'UNKNOWN_ERROR';
+      const errorObj = new Error(msg);
+      (errorObj as any).code = code;
+      throw errorObj;
     }
     return {
       id: raw.data.workId,

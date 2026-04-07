@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/useToast";
+import { useUserStore } from "@/stores/userStore";
 import { Search, Copy, Sparkles, X, Download, Share2, Loader2, ChevronDown, Palette, Filter } from "lucide-react";
 
 import { configApi, galleryApi } from "@/lib/api-client";
@@ -82,6 +83,8 @@ export function GalleryClient({
 }) {
   const router = useRouter();
   const { addToast } = useToast();
+  const { user } = useUserStore();
+  const isPremium = user && user.subscription_type !== "free";
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [styles, setStyles] = useState<StyleOption[]>([]);
@@ -244,6 +247,24 @@ export function GalleryClient({
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('Canvas not supported');
         ctx.drawImage(img, 0, 0);
+        
+        if (!isPremium) {
+          const text = "Lavie AI";
+          const fontSize = Math.max(20, Math.floor(img.width / 25));
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+          ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+          ctx.shadowBlur = 4;
+          ctx.shadowOffsetX = 2;
+          ctx.shadowOffsetY = 2;
+          
+          const padding = fontSize;
+          const textMetrics = ctx.measureText(text);
+          const x = img.width - textMetrics.width - padding;
+          const y = img.height - padding;
+          
+          ctx.fillText(text, x, y);
+        }
         
         if (format === 'ico') {
           const size = Math.min(img.width, img.height, 256);
@@ -564,12 +585,23 @@ export function GalleryClient({
             <div className="p-4 sm:p-6">
               <div className="relative bg-gradient-to-br from-rose-50 to-violet-50 rounded-xl flex items-center justify-center mb-5 overflow-hidden" style={{ maxHeight: '50vh' }}>
                 {(selectedItem.result_url || selectedItem.imageUrl) ? (
-                  <img
-                    src={selectedItem.result_url || selectedItem.imageUrl}
-                    alt={selectedItem.prompt}
-                    className="w-full h-full object-contain"
-                    style={{ maxHeight: '50vh' }}
-                  />
+                  <>
+                    <img
+                      src={selectedItem.result_url || selectedItem.imageUrl}
+                      alt={selectedItem.prompt}
+                      className="w-full h-full object-contain select-none"
+                      style={{ maxHeight: '50vh' }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      draggable={false}
+                    />
+                    {!isPremium && (
+                      <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 pointer-events-none select-none z-10">
+                        <span className="text-white/80 font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]" style={{ fontSize: 'clamp(1.5rem, 4vw, 3rem)' }}>
+                          Lavie AI
+                        </span>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <span className="text-6xl sm:text-8xl">{styleEmojis[selectedItem.style || ""] || "🎨"}</span>
                 )}

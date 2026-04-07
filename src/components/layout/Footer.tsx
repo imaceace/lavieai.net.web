@@ -26,7 +26,7 @@ export function Footer() {
             <p className="text-xs text-justify leading-relaxed opacity-80" style={{ color: 'var(--gen-text-muted)' }}>
               {tHome('seoText')}
             </p>
-            <span className="text-sm mt-2" style={{ color: 'var(--gen-text-muted)' }}>© 2026 All rights reserved.</span>
+            <span className="text-sm mt-2" style={{ color: 'var(--gen-text-muted)' }}>© 2026 Lavie AI All rights reserved.</span>
           </div>
 
           {/* Links */}

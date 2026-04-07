@@ -7,11 +7,13 @@ import Script from "next/script";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ToastContainer } from "@/components/ui/ToastContainer";
+import { LoginModal } from "@/components/auth/LoginModal";
+import { TurnstileChallengeModal } from "@/components/ui/TurnstileChallengeModal";
 
 export const metadata: Metadata = {
   title: "Lavie AI - Free AI Image Generator",
-  description: "Create stunning images with AI. Free text to image, AI art creation. No login required. Start creating now!",
-  keywords: ["AI image generator", "text to image", "AI art", "free image generator"],
+  description: "Create stunning images with Lavie AI. Free text to image, AI art creation. No login required. Start creating now with Lavie AI Image Generator!",
+  keywords: ["Lavie AI", "Lavie AI Image Generator", "AI image generator", "text to image", "AI art", "free image generator"],
   icons: {
     icon: '/icon',
     shortcut: '/icon',
@@ -19,7 +21,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Lavie AI - Free AI Image Generator",
-    description: "Create stunning images with AI",
+    description: "Create stunning AI images with Lavie AI Image Generator",
     type: "website",
     url: "https://lavieai.net",
     siteName: "Lavie AI",
@@ -27,7 +29,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Lavie AI - Free AI Image Generator",
-    description: "Create stunning images with AI",
+    description: "Create stunning AI images with Lavie AI Image Generator",
   },
 };
 
@@ -50,9 +52,8 @@ export default async function LocaleLayout({
   return (
     <html lang={resolvedLocale} suppressHydrationWarning>
       <head>
-        <Script
+        <script
           id="theme-script"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               try {
@@ -72,6 +73,8 @@ export default async function LocaleLayout({
           <main className="flex-1">{children}</main>
           <Footer />
           <ToastContainer />
+          <LoginModal />
+          <TurnstileChallengeModal />
         </NextIntlClientProvider>
       </body>
     </html>
