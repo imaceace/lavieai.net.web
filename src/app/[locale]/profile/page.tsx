@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/useToast";
 import { UpgradeModal } from "@/components/auth/UpgradeModal";
 
 type Tab = "overview" | "orders" | "history" | "admin";
+type AdminPanelTab = "whitelist" | "routing" | "pricing" | "cache" | "users";
 
 interface Order {
   id: string;
@@ -45,12 +46,85 @@ interface Work {
   is_recommended?: number;
 }
 
+interface RoutingModel {
+  id: string;
+  task_type: string;
+  provider: string;
+  model_name: string;
+  display_name: string;
+  allowed_tiers: string;
+  is_active: number;
+}
+
+interface RoutingPolicy {
+  id: string;
+  use_case: string;
+  task_type: string;
+  tier: "basic" | "pro" | "max" | "ultra";
+  primary_model: string;
+  fallback_models: string;
+  strength_min: number | null;
+  strength_max: number | null;
+  weight_quality: number;
+  weight_cost: number;
+  weight_speed: number;
+  is_active: number;
+  created_at: number;
+}
+
+interface PricingPolicy {
+  id: string;
+  use_case: string;
+  task_type: string;
+  tier: "basic" | "pro" | "max" | "ultra" | null;
+  resolution_tier: "auto" | "1k" | "2k" | "4k";
+  base_points: number;
+  override_points: number | null;
+  tier_multiplier: number;
+  resolution_multiplier: number;
+  fast_mode_surcharge: number;
+  priority_surcharge: number;
+  min_points: number;
+  max_points: number;
+  retry_budget: number;
+  max_attempts_included: number;
+  overage_points_per_retry: number;
+  display_label: string | null;
+  sort_order: number;
+  is_active: number;
+  effective_from: number;
+  effective_to: number | null;
+}
+
+interface RoutingPreviewResult {
+  resolved?: {
+    task_type?: string | null;
+    model_id?: string | null;
+    model_name?: string | null;
+    provider?: string | null;
+    template_task_type?: string | null;
+    policy_task_type?: string | null;
+  };
+}
+
+interface CacheGroupMap {
+  [group: string]: string[];
+}
+
 const PLAN_LABELS: Record<string, string> = {
   free: "Free",
   basic: "Creator",
-  pro: "Pro",
+  plus: "Plus",
+  pro: "Plus", // legacy alias
   max: "Max",
   ultra: "Studio",
+};
+
+const ROUTING_TAG_LABELS: Record<"basic" | "pro" | "max" | "ultra", string> = {
+  basic: "Creator (basic)",
+  pro: "Creator+ (pro)",
+  max: "Plus (max)",
+  ultra: "Studio (ultra)",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -120,11 +194,40 @@ export default function ProfilePage() {
   const [adminHasMore, setAdminHasMore] = useState(false);
   const [adminSelectedWorks, setAdminSelectedWorks] = useState<Set<string>>(new Set());
   const [adminExtendingWorks, setAdminExtendingWorks] = useState(false);
+  const [activeAdminPanel, setActiveAdminPanel] = useState<AdminPanelTab>("whitelist");
+  const [routingPolicies, setRoutingPolicies] = useState<RoutingPolicy[]>([]);
+  const [routingModels, setRoutingModels] = useState<RoutingModel[]>([]);
+  const [loadingRouting, setLoadingRouting] = useState(false);
+  const [policyUseCaseFilter, setPolicyUseCaseFilter] = useState("");
+  const [policyTierFilter, setPolicyTierFilter] = useState<"" | "basic" | "pro" | "max" | "ultra">("");
+  const [policyModelFilter, setPolicyModelFilter] = useState("");
+  const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
+  const [policyDraft, setPolicyDraft] = useState<any | null>(null);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [previewUseCase, setPreviewUseCase] = useState("turnIntoProfessionalPhoto");
+  const [previewTier, setPreviewTier] = useState<"basic" | "pro" | "max" | "ultra">("pro");
+  const [previewWidth, setPreviewWidth] = useState(1024);
+  const [previewHeight, setPreviewHeight] = useState(1024);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewResult, setPreviewResult] = useState<RoutingPreviewResult | null>(null);
+  const [pricingPolicies, setPricingPolicies] = useState<PricingPolicy[]>([]);
+  const [loadingPricing, setLoadingPricing] = useState(false);
+  const [pricingUseCaseFilter, setPricingUseCaseFilter] = useState("");
+  const [pricingTierFilter, setPricingTierFilter] = useState<"" | "basic" | "pro" | "max" | "ultra">("");
+  const [editingPricingId, setEditingPricingId] = useState<string | null>(null);
+  const [pricingDraft, setPricingDraft] = useState<any | null>(null);
+  const [savingPricing, setSavingPricing] = useState(false);
+  const [cacheScope, setCacheScope] = useState<"all" | "smart-routing" | "keys">("smart-routing");
+  const [cacheCustomKeysText, setCacheCustomKeysText] = useState("");
+  const [knownCacheGroups, setKnownCacheGroups] = useState<CacheGroupMap>({});
+  const [loadingCacheMeta, setLoadingCacheMeta] = useState(false);
+  const [purgingCache, setPurgingCache] = useState(false);
 
   const [grantAmount, setGrantAmount] = useState(100);
   const [grantReason, setGrantReason] = useState("");
   const [grantDays, setGrantDays] = useState(30);
   const [granting, setGranting] = useState(false);
+  const [pendingGrant, setPendingGrant] = useState<{ amount: number; reason: string; days: number } | null>(null);
 
   const isMember = user?.subscription_type && user.subscription_type !== 'free';
 
@@ -184,6 +287,239 @@ export default function ProfilePage() {
     }
   }, [activeTab, user?.is_admin]);
 
+  useEffect(() => {
+    if (activeTab !== "admin" || !user?.is_admin || activeAdminPanel !== "cache") return;
+    const fetchCacheMeta = async () => {
+      setLoadingCacheMeta(true);
+      try {
+        const { adminApi } = await import("@/lib/api-client");
+        const res = await adminApi.getCacheKeys();
+        if (res?.success) {
+          setKnownCacheGroups(res.data?.groups || {});
+        } else {
+          addToast(res?.error?.message || "Failed to load cache metadata", "error");
+        }
+      } catch {
+        addToast("Failed to load cache metadata", "error");
+      } finally {
+        setLoadingCacheMeta(false);
+      }
+    };
+    fetchCacheMeta();
+  }, [activeTab, activeAdminPanel, user?.is_admin]);
+
+  const fetchRoutingPolicies = async (params?: { use_case?: string; tier?: string; model?: string }) => {
+    const { adminApi } = await import("@/lib/api-client");
+    const res = await adminApi.getRoutingPolicies({
+      include_inactive: true,
+      use_case: params?.use_case,
+      tier: params?.tier,
+      model: params?.model,
+    });
+    if (res?.success) {
+      setRoutingPolicies(res.data || []);
+    } else {
+      throw new Error(res?.error?.message || "Failed to load routing policies");
+    }
+  };
+
+  const fetchPricingPolicies = async (params?: { use_case?: string; tier?: string }) => {
+    const { adminApi } = await import("@/lib/api-client");
+    const res = await adminApi.getPricingPolicies({
+      include_inactive: true,
+      use_case: params?.use_case,
+      tier: params?.tier,
+    });
+    if (res?.success) {
+      setPricingPolicies(res.data || []);
+    } else {
+      throw new Error(res?.error?.message || "Failed to load pricing policies");
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "admin" && user?.is_admin) {
+      const fetchRoutingData = async () => {
+        setLoadingRouting(true);
+        try {
+          const { adminApi } = await import("@/lib/api-client");
+          const [modelsRes] = await Promise.all([
+            adminApi.getRoutingModels(),
+          ]);
+          await fetchRoutingPolicies();
+          await fetchPricingPolicies();
+          if (modelsRes?.success) setRoutingModels(modelsRes.data || []);
+        } catch {
+          addToast("Failed to load routing policies", "error");
+        } finally {
+          setLoadingRouting(false);
+        }
+      };
+      fetchRoutingData();
+    }
+  }, [activeTab, user?.is_admin]);
+
+  const openEditPricing = (policy: PricingPolicy) => {
+    setEditingPricingId(policy.id);
+    setPricingDraft({ ...policy });
+  };
+
+  const cancelEditPricing = () => {
+    setEditingPricingId(null);
+    setPricingDraft(null);
+  };
+
+  const savePricing = async () => {
+    if (!pricingDraft) return;
+    setSavingPricing(true);
+    try {
+      const payload = {
+        ...pricingDraft,
+        base_points: Number(pricingDraft.base_points),
+        override_points: pricingDraft.override_points === "" ? null : Number(pricingDraft.override_points),
+        tier_multiplier: Number(pricingDraft.tier_multiplier),
+        resolution_multiplier: Number(pricingDraft.resolution_multiplier),
+        fast_mode_surcharge: Number(pricingDraft.fast_mode_surcharge),
+        priority_surcharge: Number(pricingDraft.priority_surcharge),
+        min_points: Number(pricingDraft.min_points),
+        max_points: Number(pricingDraft.max_points),
+        retry_budget: Number(pricingDraft.retry_budget),
+        max_attempts_included: Number(pricingDraft.max_attempts_included),
+        overage_points_per_retry: Number(pricingDraft.overage_points_per_retry),
+        sort_order: Number(pricingDraft.sort_order),
+        effective_from: Number(pricingDraft.effective_from),
+        effective_to: pricingDraft.effective_to === "" ? null : Number(pricingDraft.effective_to),
+        is_active: Number(pricingDraft.is_active),
+        tags: [],
+        metadata_json: { source: "admin-ui" },
+        currency_unit: "points",
+        version: 1,
+        updated_by: user?.email || "admin",
+      };
+      const { adminApi } = await import("@/lib/api-client");
+      const res = await adminApi.upsertPricingPolicy(payload);
+      if (!res?.success) {
+        addToast(res?.error?.message || "Save failed", "error");
+        return;
+      }
+      addToast("Pricing saved", "success");
+      setPricingPolicies((prev) =>
+        prev.map((p) => (p.id === pricingDraft.id ? { ...p, ...payload } : p))
+      );
+      cancelEditPricing();
+    } catch {
+      addToast("Save failed", "error");
+    } finally {
+      setSavingPricing(false);
+    }
+  };
+
+  const togglePricing = async (policy: PricingPolicy) => {
+    try {
+      const target = policy.is_active === 1 ? 0 : 1;
+      const { adminApi } = await import("@/lib/api-client");
+      const res = await adminApi.togglePricingPolicy(policy.id, target as 0 | 1);
+      if (!res?.success) {
+        addToast(res?.error?.message || "Toggle failed", "error");
+        return;
+      }
+      setPricingPolicies((prev) => prev.map((p) => (p.id === policy.id ? { ...p, is_active: target } : p)));
+      addToast(`Pricing ${target ? "enabled" : "disabled"}`, "success");
+    } catch {
+      addToast("Toggle failed", "error");
+    }
+  };
+
+  const openEditPolicy = (policy: RoutingPolicy) => {
+    setEditingPolicyId(policy.id);
+    setPolicyDraft({
+      ...policy,
+      fallback_models: (() => {
+        try {
+          const parsed = JSON.parse(policy.fallback_models || "[]");
+          return Array.isArray(parsed) ? parsed.join(", ") : "";
+        } catch {
+          return "";
+        }
+      })(),
+    });
+  };
+
+  const cancelEditPolicy = () => {
+    setEditingPolicyId(null);
+    setPolicyDraft(null);
+  };
+
+  const savePolicy = async () => {
+    if (!policyDraft) return;
+    setSavingPolicy(true);
+    try {
+      const fallbackModels = String(policyDraft.fallback_models || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const payload = {
+        id: policyDraft.id,
+        use_case: policyDraft.use_case,
+        task_type: policyDraft.task_type,
+        tier: policyDraft.tier,
+        primary_model: policyDraft.primary_model,
+        fallback_models: fallbackModels,
+        strength_min: policyDraft.strength_min === "" ? null : Number(policyDraft.strength_min),
+        strength_max: policyDraft.strength_max === "" ? null : Number(policyDraft.strength_max),
+        weight_quality: Number(policyDraft.weight_quality),
+        weight_cost: Number(policyDraft.weight_cost),
+        weight_speed: Number(policyDraft.weight_speed),
+        is_active: Number(policyDraft.is_active) as 0 | 1,
+      };
+      const weightSum = payload.weight_quality + payload.weight_cost + payload.weight_speed;
+      if (Math.abs(weightSum - 1) > 0.0001) {
+        addToast("Weights must sum to 1", "error");
+        return;
+      }
+
+      const { adminApi } = await import("@/lib/api-client");
+      const res = await adminApi.upsertRoutingPolicy(payload as any);
+      if (!res?.success) {
+        addToast(res?.error?.message || "Save failed", "error");
+        return;
+      }
+      addToast("Policy saved", "success");
+      setRoutingPolicies((prev) =>
+        prev.map((p) =>
+          p.id === policyDraft.id
+            ? {
+                ...p,
+                ...payload,
+                fallback_models: JSON.stringify(fallbackModels),
+              }
+            : p
+        )
+      );
+      cancelEditPolicy();
+    } catch {
+      addToast("Save failed", "error");
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
+
+  const togglePolicy = async (policy: RoutingPolicy) => {
+    try {
+      const target = policy.is_active === 1 ? 0 : 1;
+      const { adminApi } = await import("@/lib/api-client");
+      const res = await adminApi.toggleRoutingPolicy(policy.id, target as 0 | 1);
+      if (!res?.success) {
+        addToast(res?.error?.message || "Toggle failed", "error");
+        return;
+      }
+      setRoutingPolicies((prev) => prev.map((p) => (p.id === policy.id ? { ...p, is_active: target } : p)));
+      addToast(`Policy ${target ? "enabled" : "disabled"}`, "success");
+    } catch {
+      addToast("Toggle failed", "error");
+    }
+  };
+
   const handleUpdateWhitelist = async (email: string, status: "pending" | "approved" | "rejected") => {
     try {
       const { whitelistApi } = await import("@/lib/api-client");
@@ -203,6 +539,10 @@ export default function ProfilePage() {
     e.preventDefault();
     if (!adminSearchEmail) return;
     setAdminSearchLoading(true);
+    setAdminSearchResult(null);
+    setAdminTransactions([]);
+    setAdminOrders([]);
+    setAdminWorks([]);
     try {
       const { adminApi } = await import("@/lib/api-client");
       const data = await adminApi.getUserInfo(adminSearchEmail);
@@ -261,15 +601,20 @@ export default function ProfilePage() {
       addToast("Amount must be greater than 0", "error");
       return;
     }
+
+    setPendingGrant({ amount: grantAmount, reason: grantReason || "Admin manual grant", days: grantDays });
+  };
+
+  const confirmGrant = async () => {
+    if (!pendingGrant || !adminSearchResult?.user?.id) return;
     
     setGranting(true);
     try {
       const { adminApi } = await import("@/lib/api-client");
-      const res = await adminApi.grantCredits(adminSearchResult.user.id, grantAmount, grantReason || "Admin manual grant", grantDays);
+      const res = await adminApi.grantCredits(adminSearchResult.user.id, pendingGrant.amount, pendingGrant.reason, pendingGrant.days);
       
       if (res.success && res.data) {
-        addToast(`Successfully granted ${grantAmount} credits`, "success");
-        // Update local state
+        addToast(`Successfully granted ${pendingGrant.amount} credits`, "success");
         setAdminSearchResult({
           ...adminSearchResult,
           user: {
@@ -277,6 +622,12 @@ export default function ProfilePage() {
             credits: res.data.newBalance
           }
         });
+        setAdminPage(1);
+        const txData = await adminApi.getTransactions(adminSearchResult.user.id, 1, 20);
+        if (txData.success) {
+          setAdminTransactions(txData.data);
+          setAdminHasMore(txData.data.length === 20);
+        }
         setGrantAmount(100);
         setGrantReason("");
       } else {
@@ -286,7 +637,12 @@ export default function ProfilePage() {
       addToast(err.message || "Failed to grant credits", "error");
     } finally {
       setGranting(false);
+      setPendingGrant(null);
     }
+  };
+
+  const cancelGrant = () => {
+    setPendingGrant(null);
   };
 
   if (pageLoading || storeLoading) {
@@ -687,6 +1043,31 @@ export default function ProfilePage() {
             {/* Admin Tab */}
             {activeTab === "admin" && user?.is_admin && (
               <div className="space-y-6">
+                <div className="bg-white rounded-xl shadow-sm border p-4">
+                  <nav className="flex flex-wrap gap-2">
+                    {[
+                      { id: "whitelist", label: "Beta Waitlist" },
+                      { id: "routing", label: "Use Case Routing" },
+                      { id: "pricing", label: "Use Case Pricing" },
+                      { id: "cache", label: "Cache Manager" },
+                      { id: "users", label: "User Search" },
+                    ].map((panel) => (
+                      <button
+                        key={panel.id}
+                        onClick={() => setActiveAdminPanel(panel.id as AdminPanelTab)}
+                        className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                          activeAdminPanel === panel.id
+                            ? "bg-indigo-600 text-white border-indigo-600"
+                            : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        {panel.label}
+                      </button>
+                    ))}
+                  </nav>
+                </div>
+
+                {activeAdminPanel === "whitelist" && (
                 <div className="bg-white rounded-xl shadow-sm border p-6">
                   <h2 className="text-xl font-bold mb-4">Beta Waitlist</h2>
                   {loadingWhitelist ? (
@@ -732,7 +1113,531 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
+                )}
 
+                {activeAdminPanel === "routing" && (
+                <div className="bg-white rounded-xl shadow-sm border p-6">
+                  <h2 className="text-xl font-bold mb-4">Use Case Routing Policies</h2>
+                  <div className="mb-4 p-3 border rounded-lg bg-indigo-50/40">
+                    <p className="text-sm font-semibold mb-2">Routing Preview (useCase + planTag to taskType + model)</p>
+                    <div className="flex flex-wrap items-end gap-2">
+                      <input
+                        value={previewUseCase}
+                        onChange={(e) => setPreviewUseCase(e.target.value)}
+                        placeholder="useCase, e.g. turnIntoProfessionalPhoto"
+                        className="px-3 py-2 border rounded-lg text-sm min-w-[240px]"
+                      />
+                      <select
+                        value={previewTier}
+                        onChange={(e) => setPreviewTier(e.target.value as any)}
+                        className="px-3 py-2 border rounded-lg text-sm"
+                      >
+                        <option value="basic">{ROUTING_TAG_LABELS.basic}</option>
+                        <option value="pro">{ROUTING_TAG_LABELS.pro}</option>
+                        <option value="max">{ROUTING_TAG_LABELS.max}</option>
+                        <option value="ultra">{ROUTING_TAG_LABELS.ultra}</option>
+                      </select>
+                      <input
+                        type="number"
+                        value={previewWidth}
+                        onChange={(e) => setPreviewWidth(Number(e.target.value) || 1024)}
+                        className="w-24 px-2 py-2 border rounded-lg text-sm"
+                      />
+                      <input
+                        type="number"
+                        value={previewHeight}
+                        onChange={(e) => setPreviewHeight(Number(e.target.value) || 1024)}
+                        className="w-24 px-2 py-2 border rounded-lg text-sm"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!previewUseCase.trim()) {
+                            addToast("useCase is required", "error");
+                            return;
+                          }
+                          setPreviewLoading(true);
+                          try {
+                            const { adminApi } = await import("@/lib/api-client");
+                            const res = await adminApi.previewRouting({
+                              use_case: previewUseCase.trim(),
+                              tier: previewTier,
+                              width: previewWidth,
+                              height: previewHeight,
+                            });
+                            if (res?.success) {
+                              setPreviewResult(res.data || null);
+                              addToast("Preview loaded", "success");
+                            } else {
+                              setPreviewResult(null);
+                              addToast(res?.error?.message || "Preview failed", "error");
+                            }
+                          } catch {
+                            setPreviewResult(null);
+                            addToast("Preview failed", "error");
+                          } finally {
+                            setPreviewLoading(false);
+                          }
+                        }}
+                        className="px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                        disabled={previewLoading}
+                      >
+                        {previewLoading ? "Previewing..." : "Preview"}
+                      </button>
+                    </div>
+                    {previewResult?.resolved && (
+                      <div className="mt-3 text-xs text-gray-700 bg-white border rounded p-2">
+                        <p><span className="font-semibold">taskType:</span> {previewResult.resolved.task_type || '-'}</p>
+                        <p><span className="font-semibold">model:</span> {previewResult.resolved.model_id || '-'} / {previewResult.resolved.model_name || '-'}</p>
+                        <p><span className="font-semibold">provider:</span> {previewResult.resolved.provider || '-'}</p>
+                        <p><span className="font-semibold">template_task_type:</span> {previewResult.resolved.template_task_type || '-'}</p>
+                        <p><span className="font-semibold">policy_task_type:</span> {previewResult.resolved.policy_task_type || '-'}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mb-4">
+                    <input
+                      value={policyUseCaseFilter}
+                      onChange={(e) => setPolicyUseCaseFilter(e.target.value)}
+                      placeholder="Filter by use_case..."
+                      className="px-3 py-2 border rounded-lg text-sm min-w-[220px]"
+                    />
+                    <select
+                      value={policyTierFilter}
+                      onChange={(e) => setPolicyTierFilter(e.target.value as any)}
+                      className="px-3 py-2 border rounded-lg text-sm"
+                    >
+                      <option value="">All planTags</option>
+                      <option value="basic">{ROUTING_TAG_LABELS.basic}</option>
+                      <option value="pro">{ROUTING_TAG_LABELS.pro}</option>
+                      <option value="max">{ROUTING_TAG_LABELS.max}</option>
+                      <option value="ultra">{ROUTING_TAG_LABELS.ultra}</option>
+                    </select>
+                    <input
+                      value={policyModelFilter}
+                      onChange={(e) => setPolicyModelFilter(e.target.value)}
+                      placeholder="Filter by model id..."
+                      className="px-3 py-2 border rounded-lg text-sm min-w-[240px]"
+                    />
+                    <button
+                      onClick={async () => {
+                        setLoadingRouting(true);
+                        try {
+                          await fetchRoutingPolicies({
+                            use_case: policyUseCaseFilter || undefined,
+                            tier: policyTierFilter || undefined,
+                            model: policyModelFilter || undefined,
+                          });
+                        } catch {
+                          addToast("Failed to query routing policies", "error");
+                        } finally {
+                          setLoadingRouting(false);
+                        }
+                      }}
+                      className="px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                    >
+                      Query
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setPolicyUseCaseFilter("");
+                        setPolicyTierFilter("");
+                        setPolicyModelFilter("");
+                        setLoadingRouting(true);
+                        try {
+                          await fetchRoutingPolicies();
+                        } catch {
+                          addToast("Failed to reset routing policies", "error");
+                        } finally {
+                          setLoadingRouting(false);
+                        }
+                      }}
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+                    >
+                      Reset
+                    </button>
+                    <span className="text-xs text-gray-500">
+                      模型来自 ai_models，策略来自 use_case_model_policies
+                    </span>
+                  </div>
+                  {loadingRouting ? (
+                    <p className="text-gray-500">Loading routing policies...</p>
+                  ) : (
+                    <div className="overflow-x-auto border rounded-lg">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50">
+                          <tr className="text-left">
+                            <th className="px-3 py-2">use_case</th>
+                            <th className="px-3 py-2">task/planTag</th>
+                            <th className="px-3 py-2">primary_model</th>
+                            <th className="px-3 py-2">fallback_models</th>
+                            <th className="px-3 py-2">strength</th>
+                            <th className="px-3 py-2">weights(Q/C/S)</th>
+                            <th className="px-3 py-2">active</th>
+                            <th className="px-3 py-2">actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {routingPolicies.map((policy) => {
+                              const isEditing = editingPolicyId === policy.id;
+                              return (
+                                <tr key={policy.id} className="border-t align-top">
+                                  <td className="px-3 py-2 font-medium">{policy.use_case}</td>
+                                  <td className="px-3 py-2">{policy.task_type} / {ROUTING_TAG_LABELS[policy.tier]}</td>
+                                  <td className="px-3 py-2">
+                                    {isEditing ? (
+                                      <select
+                                        value={policyDraft?.primary_model || ""}
+                                        onChange={(e) => setPolicyDraft({ ...policyDraft, primary_model: e.target.value })}
+                                        className="w-56 px-2 py-1 border rounded"
+                                      >
+                                        {routingModels
+                                          .filter((m) => m.task_type === policy.task_type)
+                                          .map((m) => (
+                                            <option key={m.id} value={m.id}>{m.id}</option>
+                                          ))}
+                                      </select>
+                                    ) : (
+                                      <span className="font-mono">{policy.primary_model}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {isEditing ? (
+                                      <input
+                                        value={policyDraft?.fallback_models || ""}
+                                        onChange={(e) => setPolicyDraft({ ...policyDraft, fallback_models: e.target.value })}
+                                        className="w-64 px-2 py-1 border rounded"
+                                      />
+                                    ) : (
+                                      <span className="font-mono break-all">{policy.fallback_models}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {isEditing ? (
+                                      <div className="flex gap-1">
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          max="1"
+                                          value={policyDraft?.strength_min ?? ""}
+                                          onChange={(e) => setPolicyDraft({ ...policyDraft, strength_min: e.target.value })}
+                                          className="w-20 px-2 py-1 border rounded"
+                                        />
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          max="1"
+                                          value={policyDraft?.strength_max ?? ""}
+                                          onChange={(e) => setPolicyDraft({ ...policyDraft, strength_max: e.target.value })}
+                                          className="w-20 px-2 py-1 border rounded"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <span>{policy.strength_min ?? "-"} / {policy.strength_max ?? "-"}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {isEditing ? (
+                                      <div className="flex gap-1">
+                                        <input type="number" step="0.01" min="0" max="1" value={policyDraft?.weight_quality ?? 0.6} onChange={(e) => setPolicyDraft({ ...policyDraft, weight_quality: e.target.value })} className="w-16 px-1 py-1 border rounded" />
+                                        <input type="number" step="0.01" min="0" max="1" value={policyDraft?.weight_cost ?? 0.3} onChange={(e) => setPolicyDraft({ ...policyDraft, weight_cost: e.target.value })} className="w-16 px-1 py-1 border rounded" />
+                                        <input type="number" step="0.01" min="0" max="1" value={policyDraft?.weight_speed ?? 0.1} onChange={(e) => setPolicyDraft({ ...policyDraft, weight_speed: e.target.value })} className="w-16 px-1 py-1 border rounded" />
+                                      </div>
+                                    ) : (
+                                      <span>{policy.weight_quality}/{policy.weight_cost}/{policy.weight_speed}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2">{policy.is_active ? "on" : "off"}</td>
+                                  <td className="px-3 py-2">
+                                    {isEditing ? (
+                                      <div className="flex gap-2">
+                                        <button onClick={savePolicy} disabled={savingPolicy} className="px-2 py-1 text-xs bg-indigo-600 text-white rounded">Save</button>
+                                        <button onClick={cancelEditPolicy} className="px-2 py-1 text-xs border rounded">Cancel</button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex gap-2">
+                                        <button onClick={() => openEditPolicy(policy)} className="px-2 py-1 text-xs border rounded">Edit</button>
+                                        <button onClick={() => togglePolicy(policy)} className="px-2 py-1 text-xs border rounded">{policy.is_active ? "Disable" : "Enable"}</button>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          {routingPolicies.length === 0 && (
+                            <tr>
+                              <td colSpan={8} className="px-4 py-8 text-center text-gray-500">No routing policies found.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+                )}
+
+                {activeAdminPanel === "pricing" && (
+                <div className="bg-white rounded-xl shadow-sm border p-6">
+                  <h2 className="text-xl font-bold mb-4">Use Case Pricing Policies</h2>
+                  <div className="flex flex-wrap items-center gap-2 mb-4">
+                    <input
+                      value={pricingUseCaseFilter}
+                      onChange={(e) => setPricingUseCaseFilter(e.target.value)}
+                      placeholder="Filter by use_case..."
+                      className="px-3 py-2 border rounded-lg text-sm min-w-[220px]"
+                    />
+                    <select
+                      value={pricingTierFilter}
+                      onChange={(e) => setPricingTierFilter(e.target.value as any)}
+                      className="px-3 py-2 border rounded-lg text-sm"
+                    >
+                      <option value="">All tiers</option>
+                      <option value="basic">basic</option>
+                      <option value="pro">pro</option>
+                      <option value="max">max</option>
+                      <option value="ultra">ultra</option>
+                    </select>
+                    <button
+                      onClick={async () => {
+                        setLoadingPricing(true);
+                        try {
+                          await fetchPricingPolicies({
+                            use_case: pricingUseCaseFilter || undefined,
+                            tier: pricingTierFilter || undefined,
+                          });
+                        } catch {
+                          addToast("Failed to query pricing policies", "error");
+                        } finally {
+                          setLoadingPricing(false);
+                        }
+                      }}
+                      className="px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                    >
+                      Query
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setPricingUseCaseFilter("");
+                        setPricingTierFilter("");
+                        setLoadingPricing(true);
+                        try {
+                          await fetchPricingPolicies();
+                        } catch {
+                          addToast("Failed to reset pricing policies", "error");
+                        } finally {
+                          setLoadingPricing(false);
+                        }
+                      }}
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+                    >
+                      Reset
+                    </button>
+                    <span className="text-xs text-gray-500">策略来自 use_case_pricing（功能定价）</span>
+                  </div>
+                  {loadingPricing ? (
+                    <p className="text-gray-500">Loading pricing policies...</p>
+                  ) : (
+                    <div className="overflow-x-auto border rounded-lg">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50">
+                          <tr className="text-left">
+                            <th className="px-3 py-2">use_case</th>
+                            <th className="px-3 py-2">task/tier</th>
+                            <th className="px-3 py-2">base/override</th>
+                            <th className="px-3 py-2">multiplier</th>
+                            <th className="px-3 py-2">retry budget</th>
+                            <th className="px-3 py-2">active</th>
+                            <th className="px-3 py-2">actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pricingPolicies.map((policy) => {
+                            const isEditing = editingPricingId === policy.id;
+                            return (
+                              <tr key={policy.id} className="border-t align-top">
+                                <td className="px-3 py-2 font-medium">{policy.use_case}</td>
+                                <td className="px-3 py-2">{policy.task_type} / {policy.tier || "-"}</td>
+                                <td className="px-3 py-2">
+                                  {isEditing ? (
+                                    <div className="flex gap-1">
+                                      <input type="number" value={pricingDraft?.base_points ?? 0} onChange={(e) => setPricingDraft({ ...pricingDraft, base_points: e.target.value })} className="w-20 px-1 py-1 border rounded" />
+                                      <input type="number" value={pricingDraft?.override_points ?? ""} onChange={(e) => setPricingDraft({ ...pricingDraft, override_points: e.target.value })} className="w-20 px-1 py-1 border rounded" placeholder="override" />
+                                    </div>
+                                  ) : (
+                                    <span>{policy.base_points} / {policy.override_points ?? "-"}</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {isEditing ? (
+                                    <div className="flex gap-1">
+                                      <input type="number" step="0.01" value={pricingDraft?.tier_multiplier ?? 1} onChange={(e) => setPricingDraft({ ...pricingDraft, tier_multiplier: e.target.value })} className="w-16 px-1 py-1 border rounded" />
+                                      <input type="number" step="0.01" value={pricingDraft?.resolution_multiplier ?? 1} onChange={(e) => setPricingDraft({ ...pricingDraft, resolution_multiplier: e.target.value })} className="w-16 px-1 py-1 border rounded" />
+                                    </div>
+                                  ) : (
+                                    <span>{policy.tier_multiplier}/{policy.resolution_multiplier}</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {isEditing ? (
+                                    <div className="flex gap-1">
+                                      <input type="number" value={pricingDraft?.retry_budget ?? 0} onChange={(e) => setPricingDraft({ ...pricingDraft, retry_budget: e.target.value })} className="w-16 px-1 py-1 border rounded" />
+                                      <input type="number" value={pricingDraft?.max_attempts_included ?? 1} onChange={(e) => setPricingDraft({ ...pricingDraft, max_attempts_included: e.target.value })} className="w-16 px-1 py-1 border rounded" />
+                                    </div>
+                                  ) : (
+                                    <span>{policy.retry_budget}/{policy.max_attempts_included}</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">{policy.is_active ? "on" : "off"}</td>
+                                <td className="px-3 py-2">
+                                  {isEditing ? (
+                                    <div className="flex gap-2">
+                                      <button onClick={savePricing} disabled={savingPricing} className="px-2 py-1 text-xs bg-indigo-600 text-white rounded">Save</button>
+                                      <button onClick={cancelEditPricing} className="px-2 py-1 text-xs border rounded">Cancel</button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-2">
+                                      <button onClick={() => openEditPricing(policy)} className="px-2 py-1 text-xs border rounded">Edit</button>
+                                      <button onClick={() => togglePricing(policy)} className="px-2 py-1 text-xs border rounded">{policy.is_active ? "Disable" : "Enable"}</button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {pricingPolicies.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No pricing policies found.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+                )}
+
+                {activeAdminPanel === "cache" && (
+                <div className="bg-white rounded-xl shadow-sm border p-6">
+                  <h2 className="text-xl font-bold mb-4">Cache Management</h2>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Purge Cloudflare Worker cache by known groups or custom keys.
+                  </p>
+
+                  <div className="grid md:grid-cols-3 gap-4 mb-4">
+                    <label className="text-sm">
+                      <span className="block text-gray-600 mb-1">Scope</span>
+                      <select
+                        value={cacheScope}
+                        onChange={(e) => setCacheScope(e.target.value as any)}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="smart-routing">Smart Routing</option>
+                        <option value="all">All Known Caches</option>
+                        <option value="keys">Custom Keys</option>
+                      </select>
+                    </label>
+                    <div className="md:col-span-2">
+                      <span className="block text-sm text-gray-600 mb-1">Known Groups</span>
+                      {loadingCacheMeta ? (
+                        <p className="text-sm text-gray-500">Loading...</p>
+                      ) : (
+                        <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 border max-h-40 overflow-auto">
+                          {Object.keys(knownCacheGroups).length === 0 ? (
+                            <span>No cache groups found.</span>
+                          ) : (
+                            Object.entries(knownCacheGroups).map(([group, keys]) => (
+                              <div key={group} className="mb-2 last:mb-0">
+                                <p className="font-semibold">{group}</p>
+                                {keys.map((key) => (
+                                  <p key={key} className="font-mono break-all">{key}</p>
+                                ))}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {cacheScope === "keys" && (
+                    <div className="mb-4">
+                      <label className="block text-sm text-gray-600 mb-1">Custom Cache Keys (one URL per line)</label>
+                      <textarea
+                        value={cacheCustomKeysText}
+                        onChange={(e) => setCacheCustomKeysText(e.target.value)}
+                        rows={5}
+                        className="w-full px-3 py-2 border rounded-lg font-mono text-xs"
+                        placeholder="https://lavieai.net/__cache/ai-models-router-v1"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      disabled={purgingCache}
+                      onClick={async () => {
+                        const customKeys = cacheCustomKeysText
+                          .split(/\r?\n/)
+                          .map((line) => line.trim())
+                          .filter(Boolean);
+                        if (cacheScope === "keys" && customKeys.length === 0) {
+                          addToast("Please enter at least one cache key", "error");
+                          return;
+                        }
+
+                        setPurgingCache(true);
+                        try {
+                          const { adminApi } = await import("@/lib/api-client");
+                          const res = await adminApi.purgeCache({
+                            scope: cacheScope,
+                            keys: cacheScope === "keys" ? customKeys : undefined,
+                          });
+                          if (res?.success) {
+                            const deleted = res.data?.deletedCount ?? 0;
+                            const requested = res.data?.requested ?? 0;
+                            addToast(`Cache purge done: ${deleted}/${requested}`, "success");
+                          } else {
+                            addToast(res?.error?.message || "Failed to purge cache", "error");
+                          }
+                        } catch {
+                          addToast("Failed to purge cache", "error");
+                        } finally {
+                          setPurgingCache(false);
+                        }
+                      }}
+                      className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50"
+                    >
+                      {purgingCache ? "Purging..." : "Purge Cache"}
+                    </button>
+                    <button
+                      disabled={loadingCacheMeta}
+                      onClick={async () => {
+                        setLoadingCacheMeta(true);
+                        try {
+                          const { adminApi } = await import("@/lib/api-client");
+                          const res = await adminApi.getCacheKeys();
+                          if (res?.success) {
+                            setKnownCacheGroups(res.data?.groups || {});
+                            addToast("Cache metadata refreshed", "success");
+                          } else {
+                            addToast(res?.error?.message || "Refresh failed", "error");
+                          }
+                        } catch {
+                          addToast("Refresh failed", "error");
+                        } finally {
+                          setLoadingCacheMeta(false);
+                        }
+                      }}
+                      className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Refresh Keys
+                    </button>
+                  </div>
+                </div>
+                )}
+
+                {activeAdminPanel === "users" && (
                 <div className="bg-white rounded-xl shadow-sm border p-6">
                   <h2 className="text-xl font-bold mb-4">User Search (Subscriptions & Credits)</h2>
                   <form onSubmit={handleAdminSearch} className="flex gap-3 mb-6">
@@ -779,48 +1684,88 @@ export default function ProfilePage() {
                           <Zap size={16} className="text-indigo-600" />
                           Manual Credit Grant
                         </h3>
-                        <form onSubmit={handleGrantCredits} className="flex flex-col sm:flex-row gap-3 items-end">
-                          <div className="w-full sm:w-auto">
-                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Amount</label>
-                            <input 
-                              type="number" 
-                              min="1" 
-                              required
-                              value={grantAmount}
-                              onChange={e => setGrantAmount(parseInt(e.target.value))}
-                              className="w-full sm:w-24 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            />
+                        
+                        {pendingGrant ? (
+                          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-amber-200 dark:border-amber-700">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                                <span className="text-xl">⚠️</span>
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="font-bold text-amber-900 dark:text-amber-200 mb-2">Confirm Credit Grant</h4>
+                                <div className="text-sm text-gray-700 dark:text-gray-300 space-y-1 mb-4">
+                                  <p><span className="font-medium">User:</span> {adminSearchResult.user.email}</p>
+                                  <p><span className="font-medium">Amount:</span> <span className="text-green-600 font-bold">+{pendingGrant.amount} credits</span></p>
+                                  <p><span className="font-medium">Reason:</span> {pendingGrant.reason}</p>
+                                  <p><span className="font-medium">Valid Days:</span> {pendingGrant.days} days</p>
+                                </div>
+                                <p className="text-xs text-amber-700 dark:text-amber-400 mb-4">
+                                  This action cannot be undone. Are you sure?
+                                </p>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={confirmGrant}
+                                    disabled={granting}
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                                  >
+                                    {granting && <Loader2 size={14} className="animate-spin" />}
+                                    Confirm Grant
+                                  </button>
+                                  <button
+                                    onClick={cancelGrant}
+                                    disabled={granting}
+                                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <div className="w-full sm:w-auto flex-1">
-                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
-                            <input 
-                              type="text" 
-                              required
-                              placeholder="e.g. Compensation for bug"
-                              value={grantReason}
-                              onChange={e => setGrantReason(e.target.value)}
-                              className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            />
-                          </div>
-                          <div className="w-full sm:w-auto">
-                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Valid Days</label>
-                            <input 
-                              type="number" 
-                              min="1" 
-                              required
-                              value={grantDays}
-                              onChange={e => setGrantDays(parseInt(e.target.value))}
-                              className="w-full sm:w-24 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            />
-                          </div>
-                          <button 
-                            type="submit" 
-                            disabled={granting}
-                            className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
-                          >
-                            {granting ? <Loader2 size={16} className="animate-spin" /> : "Grant"}
-                          </button>
-                        </form>
+                        ) : (
+                          <form onSubmit={handleGrantCredits} className="flex flex-col sm:flex-row gap-3 items-end">
+                            <div className="w-full sm:w-auto">
+                              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Amount</label>
+                              <input 
+                                type="number" 
+                                min="1" 
+                                required
+                                value={grantAmount}
+                                onChange={e => setGrantAmount(parseInt(e.target.value))}
+                                className="w-full sm:w-24 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              />
+                            </div>
+                            <div className="w-full sm:w-auto flex-1">
+                              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
+                              <input 
+                                type="text" 
+                                required
+                                placeholder="e.g. Compensation for bug"
+                                value={grantReason}
+                                onChange={e => setGrantReason(e.target.value)}
+                                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              />
+                            </div>
+                            <div className="w-full sm:w-auto">
+                              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Valid Days</label>
+                              <input 
+                                type="number" 
+                                min="1" 
+                                required
+                                value={grantDays}
+                                onChange={e => setGrantDays(parseInt(e.target.value))}
+                                className="w-full sm:w-24 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              />
+                            </div>
+                            <button 
+                              type="submit" 
+                              disabled={granting}
+                              className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
+                            >
+                              {granting ? <Loader2 size={16} className="animate-spin" /> : "Grant"}
+                            </button>
+                          </form>
+                        )}
                       </div>
 
                       <div className="mt-6">
@@ -1033,6 +1978,7 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
           </div>

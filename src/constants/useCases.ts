@@ -3,7 +3,7 @@ import { GenerationParams } from '../lib/api-client';
 export interface InteractiveI2ICase {
   id: string;
   tabLabel: string;
-  descKey: string; // Changed from titleKey to descKey
+  descKey?: string; // Changed from titleKey to descKey
   beforeImage: string;
   afterImage: string;
   actionButtonTextKey: string;
@@ -17,9 +17,29 @@ export interface FeatureDiscoveryCase {
   image: string;
   params: GenerationParams;
   requiredTier?: "free" | "basic" | "pro" | "max" | "ultra";
+  altKey?: string; // SEO optimized alt text
 }
 
-export const INTERACTIVE_I2I_CASES: InteractiveI2ICase[] = [
+// NOTE:
+// These use cases are intentionally hidden for now because they need user-editable prompts.
+// Do NOT delete underlying case definitions yet.
+// If future cleanup wants to remove code, user explicit second confirmation is required first.
+export const PROMPT_EDIT_REQUIRED_USE_CASE_IDS = new Set<string>([
+  "changeOutfit",
+  "giveUsMatchingOutfit",
+  "styleMe",
+  "changeHair",
+  "ageTransformation",
+  "redecorateMyRoom",
+  "createAlbumCover",
+  "createHolidayCard",
+  "whatWouldILookLikeAsAKPopStar",
+  "turnIntoGundam",
+  "cyberpunk",
+  "keychain",
+]);
+
+const BASE_INTERACTIVE_I2I_CASES: InteractiveI2ICase[] = [
   {
     id: "removeBackground",
     tabLabel: "Remove Background",
@@ -46,28 +66,28 @@ export const INTERACTIVE_I2I_CASES: InteractiveI2ICase[] = [
     requiredTier: "pro",
     params: {
       useCase: "sketchToReal",
-      prompt: "Highly detailed photorealistic render, highly finished, professional photography, realistic textures, ray tracing, unreal engine 5, masterpiece",
+      prompt: "Convert this sketch into a full-color photorealistic product photo while strictly preserving the original subject identity, object category, silhouette, perspective, and composition; keep the same viewpoint and proportions, remove all sketch strokes and construction lines, and add realistic materials, reflections, lighting, shadows, and fine surface details",
       style: "photorealistic",
       resolution: [1024, 1024],
-      strength: 0.75,
-      negativePrompt: "sketch, drawing, lines, outline, uncolored, flat, 2d, cartoon, anime"
+      strength: 0.86,
+      negativePrompt: "sketch style, line art, pencil strokes, construction lines, monochrome, grayscale, outline drawing, hand-drawn texture, change subject, wrong object category, new unrelated object, mattress, bed, sofa, profile mismatch, distorted geometry, deformed perspective, cartoon, anime, low quality, blur"
     }
   },
   {
-    id: "changeOutfit", // Updated ID to match market trend
-    tabLabel: "Change Outfit",
-    descKey: "useCases.giveUsMatchingOutfit.desc",
-    beforeImage: "/images/quick-i2i/change-outfit-before.webp", 
+    id: "turnIntoProfessionalPhoto",
+    tabLabel: "Professional Headshot",
+    descKey: "useCases.turnIntoProfessionalPhoto.title",
+    beforeImage: "/images/quick-i2i/change-outfit-before.webp",
     afterImage: "/images/quick-i2i/change-outfit-after.webp",
-    actionButtonTextKey: "useCases.giveUsMatchingOutfit.action",
+    actionButtonTextKey: "useCases.turnIntoProfessionalPhoto.title",
     requiredTier: "pro",
     params: {
-      useCase: "giveUsMatchingOutfit",
-      prompt: "Same person, exact same face and identity as original image, wearing a luxurious haute couture evening gown, professional fashion photography, high-end fashion magazine style, perfectly tailored clothes",
-      style: "fashion",
-      resolution: [768, 1024],
-      strength: 0.65,
-      negativePrompt: "different face, changed identity, morphed facial features, bad anatomy, deformed body, casual clothes, messy, blurry face"
+      useCase: "turnIntoProfessionalPhoto",
+      prompt: "Professional corporate headshot, frontal view only, head-and-shoulders portrait, perfectly centered composition, direct eye contact to camera, upright posture, neutral professional expression, clean plain studio background only (solid light gray, white, or soft beige), even diffused studio lighting, sharp facial details, realistic skin texture, business attire, LinkedIn-ready profile photo; fully replace original scene and remove all flowers, plants, decorations, and environmental elements",
+      style: "portrait",
+      resolution: [1024, 1024],
+      strength: 0.82,
+      negativePrompt: "side profile, three-quarter profile, looking away, tilted head, off-center framing, full body, original background, floral background, flowers, plants, room scene, outdoor scene, clutter, props, harsh shadows, blur, low quality, distorted face, bad anatomy, cartoon, anime"
     }
   },
   {
@@ -104,6 +124,39 @@ export const INTERACTIVE_I2I_CASES: InteractiveI2ICase[] = [
     }
   },
   {
+    id: "restorePhoto",
+    tabLabel: "Restore Photo",
+    descKey: "useCases.restorePhoto.title",
+    beforeImage: "/images/quick-i2i/restore-image-before.jpeg",
+    afterImage: "/images/quick-i2i/restore_image_after.webp",
+    actionButtonTextKey: "useCases.restorePhoto.title",
+    params: {
+      useCase: "restorePhoto",
+      prompt: "A highly detailed, perfectly restored vintage photograph, sepia tone, sharp focus, historical attire, elegant portrait",
+      style: "analog-film",
+      resolution: [896, 1152],
+      strength: 0.35,
+      negativePrompt: "scratches, dust, noise, torn, damaged, blurry, modern"
+    }
+  },
+  {
+    id: "colorizePhoto",
+    tabLabel: "Colorize Photo",
+    descKey: "useCases.colorizePhoto.title",
+    beforeImage: "/images/quick-i2i/colorize-photo-before-albert-einstein.jpg",
+    afterImage: "/images/quick-i2i/colorize-photo-after-albert-einstein.png",
+    actionButtonTextKey: "useCases.colorizePhoto.title",
+    requiredTier: "pro",
+    params: {
+      useCase: "colorizePhoto",
+      prompt: "Perfectly colorized historical photo, natural realistic skin tones, vibrant and accurate colors, highly detailed, restored photography",
+      style: "photorealistic",
+      resolution: [1024, 1024],
+      strength: 0.40,
+      negativePrompt: "black and white, monochrome, grayscale, sepia, faded, desaturated, unrealistic colors"
+    }
+  },
+  {
     id: "turnIntoAnime", // Changed from Claymation to Anime as Anime has much higher market volume
     tabLabel: "Turn into Anime",
     descKey: "useCases.turnIntoAnime.desc",
@@ -127,6 +180,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "createHolidayCard",
     titleKey: "useCases.createHolidayCard.title",
+    altKey: "useCases.createHolidayCard.alt",
     image: "/images/quick-i2i/create-a-holiday-card.webp",
     params: {
       useCase: "createHolidayCard",
@@ -140,6 +194,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "createAlbumCover",
     titleKey: "useCases.createAlbumCover.title",
+    altKey: "useCases.createAlbumCover.alt",
     image: "/images/quick-i2i/create-an-album-cover.webp",
     params: {
       useCase: "createAlbumCover",
@@ -151,49 +206,9 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
     }
   },
   {
-    id: "createProfessionalProductPhoto",
-    titleKey: "useCases.createProfessionalProductPhoto.title",
-    image: "/images/quick-i2i/create-a-professional-product-photo.webp",
-    requiredTier: "pro",
-    params: {
-      useCase: "createProfessionalProductPhoto",
-      prompt: "Professional commercial photography of a premium product, floating on a sleek pedestal, clean background, studio lighting, 8k",
-      style: "commercial",
-      resolution: [1024, 1024],
-      strength: 0.60,
-      negativePrompt: "text, watermark, blurry, low quality"
-    }
-  },
-  {
-    id: "createProfessionalJobPhoto",
-    titleKey: "useCases.createProfessionalJobPhoto.title",
-    image: "/images/quick-i2i/create-a-professional-job-photo.webp",
-    requiredTier: "pro",
-    params: {
-      useCase: "createProfessionalJobPhoto",
-      prompt: "A professional corporate headshot, business attire, neutral background, soft friendly smile, LinkedIn profile picture style",
-      style: "portrait",
-      resolution: [1024, 1024],
-      strength: 0.55,
-      negativePrompt: "casual clothes, messy hair, bad lighting"
-    }
-  },
-  {
-    id: "createLogo",
-    titleKey: "useCases.createLogo.title",
-    image: "/images/quick-i2i/create-an-album-cover.webp", // Fallback image
-    params: {
-      useCase: "createLogo",
-      prompt: "A professional minimalist flat vector logo design, isolated on solid white background, high quality, corporate identity, clean shapes",
-      style: "illustration",
-      resolution: [1024, 1024],
-      strength: 0.70,
-      negativePrompt: "text, watermark, messy, 3d, photorealistic, complex, busy"
-    }
-  },
-  {
     id: "petRoyalPainting",
     titleKey: "useCases.petRoyalPainting.title",
+    altKey: "useCases.petRoyalPainting.alt",
     image: "/images/quick-i2i/pet-royal-painting.webp",
     params: {
       useCase: "petRoyalPainting",
@@ -209,6 +224,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "whatWouldILookLikeAsAKPopStar",
     titleKey: "useCases.whatWouldILookLikeAsAKPopStar.title",
+    altKey: "useCases.whatWouldILookLikeAsAKPopStar.alt",
     image: "/images/quick-i2i/what-would-i-look-like-as-a-k-pop-star.webp",
     params: {
       useCase: "whatWouldILookLikeAsAKPopStar",
@@ -222,6 +238,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "meAsTheGirlWithAPearl",
     titleKey: "useCases.meAsTheGirlWithAPearl.title",
+    altKey: "useCases.meAsTheGirlWithAPearl.alt",
     image: "/images/quick-i2i/me-as-the-girl-with-a-pearl.webp",
     params: {
       useCase: "meAsTheGirlWithAPearl",
@@ -235,32 +252,35 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "turnIntoGundam",
     titleKey: "useCases.turnIntoGundam.title",
+    altKey: "useCases.turnIntoGundam.alt",
     image: "/images/quick-i2i/gundam-style.webp",
     params: {
       useCase: "turnIntoGundam",
-      prompt: "Turn into a mecha Gundam robot, intricate mechanical parts, glowing neon accents, metallic armor, sci-fi cyberpunk aesthetic, highly detailed masterpiece",
+      prompt: "Turn the person into an anime mecha battle suit, white-blue-red color blocking, V-fin head crest, angular armor plating, backpack thrusters, beam-saber energy glow, intricate mechanical parts, metallic armor. Also transform the entire background into a futuristic battlefield hangar with mechanical structures, smoke, sparks, neon energy trails, and cinematic sci-fi lighting so the subject and environment share one consistent Gundam-style look",
       style: "3d-render",
       resolution: [1024, 1024],
       strength: 0.70,
-      negativePrompt: "human skin, flesh, soft, realistic human, organic, blurry, low quality"
+      negativePrompt: "human skin, flesh, soft, realistic human, organic, unchanged original background, plain real-world background, blurry, low quality"
     }
   },
   {
     id: "turnIntoCyborg",
     titleKey: "useCases.turnIntoCyborg.title",
-    image: "/images/quick-i2i/cyberpunk.webp", // Fallback image
+    altKey: "useCases.turnIntoCyborg.alt",
+    image: "/images/quick-i2i/cyberpunk.webp",
     params: {
       useCase: "turnIntoCyborg",
-      prompt: "Turn into a futuristic cyborg, half human half machine, glowing robotic eye, metallic face plates, cyberpunk aesthetic, highly detailed sci-fi portrait",
+      prompt: "Transform the person into a premium half-human half-machine cyborg while preserving identity, pose, hairstyle, clothing silhouette, and body proportions. Make the cybernetic modifications unmistakable but elegant: one glowing cybernetic eye or visor detail, metallic cheek and temple plates, illuminated neck and collarbone ports, chest-core interface hints under the neckline, biomechanical forearms or hands, precision leg prosthetic details, subtle chrome implants, glowing circuit seams, and seamless synthetic materials blended with remaining human skin. Avoid a toy robot look; keep it cinematic, high-end, believable, and fashion-forward. Restyle the full background into a dense neon cyberpunk megacity with holograms, rain reflections, futuristic billboards, mist, and dramatic magenta-cyan lighting so the subject and environment share one cohesive premium sci-fi aesthetic.",
       style: "cyberpunk",
       resolution: [1024, 1024],
-      strength: 0.65,
-      negativePrompt: "normal human, casual clothes, soft, cartoon, 2d, plain"
+      strength: 0.76,
+      negativePrompt: "fully normal human, no cybernetic parts, no robotic eye, organic face only, plain skin only, cheap toy robot, bulky mech suit, full android, plastic robot limbs, low-end cosplay armor, soft cartoon, cute anime, 2d illustration, low detail, blurry, plain background, unchanged real-world background, non-cyberpunk background, weak lighting, distorted anatomy, broken hands"
     }
   },
   {
     id: "zombieStyle",
     titleKey: "useCases.zombieStyle.title",
+    altKey: "useCases.zombieStyle.alt",
     image: "/images/quick-i2i/zombie-style.webp",
     params: {
       useCase: "zombieStyle",
@@ -274,6 +294,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "keychain",
     titleKey: "useCases.keychain.title",
+    altKey: "useCases.keychain.alt",
     image: "/images/quick-i2i/lavie_a_cute_3d_rendered_keychain_of.webp",
     params: {
       useCase: "keychain",
@@ -289,19 +310,21 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "ghibliStyle",
     titleKey: "useCases.ghibliStyle.title",
+    altKey: "useCases.ghibliStyle.alt",
     image: "/images/quick-i2i/convert-to-ghibli-style.webp",
     params: {
       useCase: "ghibliStyle",
-      prompt: "Studio Ghibli style animation art, Hayao Miyazaki, vibrant colors, anime masterpiece, highly detailed, beautiful scenery, 2d animation",
+      prompt: "Transform the photo into a cinematic Studio Ghibli-inspired frame while preserving the same person identity, facial geometry, pose, and composition. Keep natural skin texture and realistic lighting, then blend hand-painted Ghibli linework, soft watercolor shading, and warm filmic color grading for a believable semi-realistic anime look.",
       style: "anime",
       resolution: [1024, 1024],
-      strength: 0.60,
-      negativePrompt: "photorealistic, 3d, cg, deformed, poorly drawn, ugly, realistic"
+      strength: 0.55,
+      negativePrompt: "chibi proportions, oversized anime eyes, flat cel shading, plastic skin, waxy face, low detail, blurry, noisy, distorted face, extra limbs, deformed hands, 3d render, uncanny expression, over-saturated colors"
     }
   },
   {
     id: "pixarStyle",
     titleKey: "useCases.pixarStyle.title",
+    altKey: "useCases.pixarStyle.alt",
     image: "/images/quick-i2i/pixar-style.webp",
     params: {
       useCase: "pixarStyle",
@@ -315,7 +338,8 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "ps2Retro",
     titleKey: "useCases.ps2Retro.title",
-    image: "/images/quick-i2i/ps2-retro.webp", // fallback if not exists
+    altKey: "useCases.ps2Retro.alt",
+    image: "/images/quick-i2i/ps2-retro.webp",
     params: {
       useCase: "ps2Retro",
       prompt: "Early 2000s PS2 game graphics, low poly 3D render, retro video game aesthetic, vintage CGI, PlayStation 2 style, slightly pixelated",
@@ -328,19 +352,21 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "gtaStyle",
     titleKey: "useCases.gtaStyle.title",
+    altKey: "useCases.gtaStyle.alt",
     image: "/images/quick-i2i/gta-style.webp",
     params: {
       useCase: "gtaStyle",
-      prompt: "GTA V loading screen art style, cel shaded, thick outlines, high contrast, bold colors, comic book style, digital illustration",
+      prompt: "Transform the photo into Grand Theft Auto V loading screen promotional character art while preserving the same person identity, pose, and overall composition. Use editorial poster composition, bold black outlines, polished cel shading, dramatic rim lighting, high-contrast comic-book rendering, saturated cinematic colors, and mature Rockstar-style splash art. Keep the character as the dominant hero subject and restyle the environment into a stylish urban crime-game city scene with billboard-heavy streets, dramatic traffic, strong depth, and premium commercial cover-art impact. Do not add title text or logo overlays.",
       style: "comic-book",
       resolution: [1024, 1024],
-      strength: 0.65,
-      negativePrompt: "photorealistic, 3d render, soft, blurry, realistic photo"
+      strength: 0.75,
+      negativePrompt: "photorealistic, realistic photo, 3d render, soft watercolor, children's book illustration, childlike illustration, cute cartoon, family-friendly cartoon, anime, manga, flat simple cartoon, low contrast, blurry, washed out colors, weak outlines, messy background, deformed hands, distorted anatomy, title text, logo overlay, watermark, random letters, fake typography"
     }
   },
   {
     id: "cyberpunk",
     titleKey: "useCases.cyberpunk.title",
+    altKey: "useCases.cyberpunk.alt",
     image: "/images/quick-i2i/cyberpunk.webp",
     params: {
       useCase: "cyberpunk",
@@ -354,6 +380,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "legoStyle",
     titleKey: "useCases.legoStyle.title",
+    altKey: "useCases.legoStyle.alt",
     image: "/images/quick-i2i/lego-style.webp",
     params: {
       useCase: "legoStyle",
@@ -369,6 +396,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "pixelArt",
     titleKey: "useCases.pixelArt.title",
+    altKey: "useCases.pixelArt.alt",
     image: "/images/quick-i2i/pixel-art.webp",
     params: {
       useCase: "pixelArt",
@@ -382,6 +410,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "pencilSketch",
     titleKey: "useCases.pencilSketch.title",
+    altKey: "useCases.pencilSketch.alt",
     image: "/images/quick-i2i/pencil-sketch.webp",
     params: {
       useCase: "pencilSketch",
@@ -395,6 +424,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "watercolor",
     titleKey: "useCases.watercolor.title",
+    altKey: "useCases.watercolor.alt",
     image: "/images/quick-i2i/watercolor.webp",
     params: {
       useCase: "watercolor",
@@ -408,6 +438,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "oilPainting",
     titleKey: "useCases.oilPainting.title",
+    altKey: "useCases.oilPainting.alt",
     image: "/images/quick-i2i/oil-painting.webp",
     params: {
       useCase: "oilPainting",
@@ -421,6 +452,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "papercraft",
     titleKey: "useCases.papercraft.title",
+    altKey: "useCases.papercraft.alt",
     image: "/images/quick-i2i/papercraft.webp",
     params: {
       useCase: "papercraft",
@@ -434,6 +466,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "claymation",
     titleKey: "useCases.claymation.title",
+    altKey: "useCases.claymation.alt",
     image: "/images/quick-i2i/claymation.webp",
     params: {
       useCase: "claymation",
@@ -449,6 +482,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "redecorateMyRoom",
     titleKey: "useCases.redecorateMyRoom.title",
+    altKey: "useCases.redecorateMyRoom.alt",
     image: "/images/quick-i2i/redecorate-my-room.webp",
     params: {
       useCase: "redecorateMyRoom",
@@ -462,6 +496,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "styleMe",
     titleKey: "useCases.styleMe.title",
+    altKey: "useCases.styleMe.alt",
     image: "/images/quick-i2i/style-me.webp",
     params: {
       useCase: "styleMe",
@@ -475,6 +510,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "changeHair",
     titleKey: "useCases.changeHair.title",
+    altKey: "useCases.changeHair.alt",
     image: "/images/quick-i2i/change-hair.webp",
     params: {
       useCase: "changeHair",
@@ -488,6 +524,7 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
   {
     id: "ageTransformation",
     titleKey: "useCases.ageTransformation.title",
+    altKey: "useCases.ageTransformation.alt",
     image: "/images/quick-i2i/age-transformation.webp",
     params: {
       useCase: "ageTransformation",
@@ -499,30 +536,137 @@ export const FEATURE_DISCOVERY_CASES: FeatureDiscoveryCase[] = [
     }
   },
   {
-    id: "colorizePhoto",
-    titleKey: "useCases.colorizePhoto.title",
-    image: "/images/quick-i2i/colorize-photo.webp",
-    requiredTier: "pro",
+    id: "turnIntoDoodle",
+    titleKey: "useCases.turnIntoDoodle.title",
+    altKey: "useCases.turnIntoDoodle.alt",
+    image: "/images/quick-i2i/turn-into-doodle.webp",
     params: {
-      useCase: "colorizePhoto",
-      prompt: "Perfectly colorized historical photo, natural realistic skin tones, vibrant and accurate colors, highly detailed, restored photography",
-      style: "photorealistic",
+      useCase: "turnIntoDoodle",
+      prompt: "Convert into a hand-drawn doodle illustration, whimsical sketch style, black ink on white paper, playful scribbles, expressive linework, cute and charming",
+      style: "line-art",
       resolution: [1024, 1024],
-      strength: 0.40,
-      negativePrompt: "black and white, monochrome, grayscale, sepia, faded, desaturated, unrealistic colors"
+      strength: 0.65,
+      negativePrompt: "photorealistic, 3d render, color, shading, smooth, photographic"
     }
   },
   {
-    id: "restorePhoto",
-    titleKey: "useCases.restorePhoto.title",
-    image: "/images/quick-i2i/restore-photo.webp", // Need fallback if not exist
+    id: "turnIntoPlushie",
+    titleKey: "useCases.turnIntoPlushie.title",
+    altKey: "useCases.turnIntoPlushie.alt",
+    image: "/images/quick-i2i/turn-into-plushie.webp",
     params: {
-      useCase: "restorePhoto",
-      prompt: "A highly detailed, perfectly restored vintage photograph, sepia tone, sharp focus, historical attire, elegant portrait",
-      style: "analog-film",
-      resolution: [896, 1152],
-      strength: 0.35,
-      negativePrompt: "scratches, dust, noise, torn, damaged, blurry, modern"
+      useCase: "turnIntoPlushie",
+      prompt: "Transform into a soft plush toy character, fluffy fabric texture, cute oversized eyes, stitched seams, squishy and huggable appearance, kawaii aesthetic",
+      style: "3d-render",
+      resolution: [1024, 1024],
+      strength: 0.65,
+      negativePrompt: "realistic human, photographic, sharp edges, hard materials, metal, realistic skin"
     }
   }
 ];
+
+const MIGRATED_TO_INTERACTIVE_CASE_IDS_IN_ORDER = [
+  "ghibliStyle",
+  "pixarStyle",
+  "gtaStyle",
+  "legoStyle",
+  "turnIntoCyborg",
+  "pixelArt",
+  "pencilSketch",
+  "petRoyalPainting",
+] as const;
+
+const MIGRATED_TO_INTERACTIVE_CASE_IDS = new Set<string>(
+  MIGRATED_TO_INTERACTIVE_CASE_IDS_IN_ORDER
+);
+
+const MIGRATED_TO_INTERACTIVE_META: Record<
+  (typeof MIGRATED_TO_INTERACTIVE_CASE_IDS_IN_ORDER)[number],
+  {
+    tabLabel: string;
+    descKey: string;
+    beforeImage: string;
+    afterImage: string;
+  }
+> = {
+  ghibliStyle: {
+    tabLabel: "Ghibli Style",
+    descKey: "useCases.ghibliStyle.desc",
+    beforeImage: "/images/quick-i2i/style-me.webp",
+    afterImage: "/images/quick-i2i/convert-to-ghibli-style.webp",
+  },
+  pixarStyle: {
+    tabLabel: "Pixar Style",
+    descKey: "useCases.pixarStyle.desc",
+    beforeImage: "/images/quick-i2i/little_girl.webp",
+    afterImage: "/images/quick-i2i/pixar-style.webp",
+  },
+  gtaStyle: {
+    tabLabel: "GTA Style",
+    descKey: "useCases.gtaStyle.desc",
+    beforeImage: "/images/quick-i2i/little_girl.webp",
+    afterImage: "/images/quick-i2i/gta-style.webp",
+  },
+  legoStyle: {
+    tabLabel: "Lego Style",
+    descKey: "useCases.legoStyle.desc",
+    beforeImage: "/images/quick-i2i/little_girl.webp",
+    afterImage: "/images/quick-i2i/lego-style.webp",
+  },
+  turnIntoCyborg: {
+    tabLabel: "Turn into Cyborg",
+    descKey: "useCases.turnIntoCyborg.desc",
+    beforeImage: "/images/quick-i2i/little_girl.webp",
+    afterImage: "/images/quick-i2i/cyberpunk.webp",
+  },
+  pixelArt: {
+    tabLabel: "Pixel Art",
+    descKey: "useCases.pixelArt.desc",
+    beforeImage: "/images/quick-i2i/little_girl.webp",
+    afterImage: "/images/quick-i2i/pixel-art.webp",
+  },
+  pencilSketch: {
+    tabLabel: "Pencil Sketch",
+    descKey: "useCases.pencilSketch.desc",
+    beforeImage: "/images/quick-i2i/little_girl.webp",
+    afterImage: "/images/quick-i2i/pencil-sketch.webp",
+  },
+  petRoyalPainting: {
+    tabLabel: "Royal Portrait",
+    descKey: "useCases.petRoyalPainting.desc",
+    beforeImage: "/images/quick-i2i/pet-royal-painting.webp",
+    afterImage: "/images/quick-i2i/pet-royal-painting.webp",
+  },
+};
+
+const migratedFeatureDiscoveryCases: InteractiveI2ICase[] =
+  MIGRATED_TO_INTERACTIVE_CASE_IDS_IN_ORDER.map((id) => {
+    const source = FEATURE_DISCOVERY_CASES.find((item) => item.id === id);
+    if (!source) return null;
+
+    const meta = MIGRATED_TO_INTERACTIVE_META[id];
+
+    return {
+      id: source.id,
+      tabLabel: meta.tabLabel,
+      descKey: meta.descKey,
+      beforeImage: meta.beforeImage,
+      afterImage: meta.afterImage,
+      actionButtonTextKey: source.titleKey,
+      params: source.params,
+      requiredTier: source.requiredTier,
+    };
+  }).filter((item): item is InteractiveI2ICase => item !== null);
+
+export const INTERACTIVE_I2I_CASES: InteractiveI2ICase[] = [
+  ...BASE_INTERACTIVE_I2I_CASES,
+  ...migratedFeatureDiscoveryCases,
+];
+
+// UI should consume this filtered list for now.
+// Keep FEATURE_DISCOVERY_CASES intact to preserve source data and future rollback ability.
+export const FEATURE_DISCOVERY_VISIBLE_CASES: FeatureDiscoveryCase[] = FEATURE_DISCOVERY_CASES.filter(
+  (item) =>
+    !PROMPT_EDIT_REQUIRED_USE_CASE_IDS.has(item.id) &&
+    !MIGRATED_TO_INTERACTIVE_CASE_IDS.has(item.id)
+);

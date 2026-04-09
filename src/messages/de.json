@@ -81,7 +81,19 @@
       "generationFailed": "Generierung fehlgeschlagen. Bitte versuche es erneut.",
       "upgradeRequiredTitle": "Upgrade erforderlich",
       "upgradeRequired": "Dieses Modell oder diese Auflösung erfordert einen Premium-Plan. Bitte führen Sie ein Upgrade durch, um weitere Funktionen freizuschalten.",
-      "highResNotice": "Die Generierung höherer Auflösungen erfordert erheblich mehr Rechenleistung und Credits."
+      "highResNotice": "Die Generierung höherer Auflösungen erfordert erheblich mehr Rechenleistung und Credits.",
+      "useCaseUploadModal": {
+        "subtitle": "Lade zuerst ein Bild hoch und klicke dann auf Generieren, um fortzufahren.",
+        "ready": "Bereit zum Generieren. Du kannst auf Generieren oder Abbrechen klicken.",
+        "model": "Modell",
+        "cost": "Kosten",
+        "uploading": "Wird hochgeladen...",
+        "chooseImage": "Bild auswählen",
+        "cancel": "Abbrechen",
+        "removeImage": "Bild entfernen",
+        "uploadedNotice": "Bild hochgeladen. Klicke auf Generieren, um fortzufahren.",
+        "uploadFirstNotice": "Bitte lade zuerst ein Bild hoch."
+      }
     },
     "results": {
       "title": "Generiertes Bild",
@@ -232,11 +244,8 @@
       "meAsTheGirlWithAPearl": {
         "title": "Ich als Das Mädchen mit dem Perlenohrgehänge"
       },
-      "createProfessionalProductPhoto": {
-        "title": "Ein professionelles Produktfoto erstellen"
-      },
-      "createProfessionalJobPhoto": {
-        "title": "Ein professionelles Bewerbungsfoto erstellen"
+      "turnIntoProfessionalPhoto": {
+        "title": "Werden Sie ein professionelles Porträt"
       },
       "removePeopleInTheBackground": {
         "title": "Personen im Hintergrund entfernen"
@@ -268,8 +277,69 @@
       "restorePhoto": {
         "title": "Ein altes Foto restaurieren"
       },
+      "turnIntoDoodle": {
+        "title": "Werde zur Zeichnung",
+        "alt": "KI Doodle Filter - Verwandle dein Foto in eine handgezeichnete Skizze mit Lavie AI"
+      },
+      "turnIntoPlushie": {
+        "title": "Werden Sie ein Plüschtier",
+        "alt": "KI Plüschtier Filter - Verwandle dich in eine süße Plüschtier-Figur mit flauschiger Textur mit Lavie AI"
+      },
       "keychain": {
         "title": "In einen Schlüsselanhänger verwandeln"
+      },
+      "upscaleImage": {
+        "desc": "Enhance resolution and restore blurry photos.",
+        "action": "Try AI Upscaler"
+      },
+      "turnIntoAnime": {
+        "desc": "Convert real photos into Japanese anime style.",
+        "action": "Try Anime Filter"
+      },
+      "turnIntoGundam": {
+        "title": "Transform into Mecha Armor"
+      },
+      "turnIntoCyborg": {
+        "title": "Turn into a Cyborg"
+      },
+      "zombieStyle": {
+        "title": "Halloween Zombie Effect"
+      },
+      "pixarStyle": {
+        "title": "Apply Pixar Style"
+      },
+      "gtaStyle": {
+        "title": "GTA Style Effect"
+      },
+      "legoStyle": {
+        "title": "Lego Style Effect"
+      },
+      "pixelArt": {
+        "title": "Pixel Art Effect"
+      },
+      "pencilSketch": {
+        "title": "Pencil Sketch Effect"
+      },
+      "watercolor": {
+        "title": "Watercolor Painting Effect"
+      },
+      "oilPainting": {
+        "title": "Oil Painting Effect"
+      },
+      "papercraft": {
+        "title": "Papercraft Effect"
+      },
+      "claymation": {
+        "title": "Claymation Effect"
+      },
+      "changeHair": {
+        "title": "Change Hair Style"
+      },
+      "ageTransformation": {
+        "title": "Age Transformation Effect"
+      },
+      "petRoyalPainting": {
+        "title": "Transform into Royal Portrait"
       }
     },
     "howItWorks": {
@@ -416,20 +486,17 @@
     },
     "imageToImage": {
       "title": "Bild zu Bild",
-      "subtitle": "Verwandeln Sie Ihre Fotos sofort"
+      "subtitle": "Laden Sie ein Foto hoch & wenden Sie Lavie AI-Magie an"
     },
     "exploreMore": {
-      "title": "Weitere Tools entdecken",
-      "subtitle": "Alles, was Sie für Design und Kreation brauchen",
+      "title": "Verwandeln Sie Ihr Bild",
+      "subtitle": "Stiltransfer, Kunstfilter & Objektentfernung",
       "showMore": "Mehr Anzeigen",
       "showLess": "Weniger Anzeigen"
     }
   },
   "useCases": {
     "title": {},
-    "createLogo": {
-      "title": "Erstelle ein Logo"
-    },
     "turnIntoCyborg": {
       "title": "In einen Cyborg verwandeln"
     },
@@ -456,11 +523,8 @@
     "meAsTheGirlWithAPearl": {
       "title": "Werde Das Mädchen mit dem Perlenohrring"
     },
-    "createProfessionalProductPhoto": {
-      "title": "Ein Produktfoto erstellen"
-    },
-    "createProfessionalJobPhoto": {
-      "title": "Ein professionelles Porträt erstellen"
+    "turnIntoProfessionalPhoto": {
+      "title": "Werden Sie ein professionelles Porträt"
     },
     "removePeopleInTheBackground": {
       "title": "Personen im Hintergrund entfernen",
@@ -470,9 +534,9 @@
       "title": "In Ghibli-Stil umwandeln"
     },
     "removeWatermark": {
-      "title": "Wasserzeichen entfernen",
+      "title": "Wasserzeichen & Objekte entfernen",
       "action": "Wasserzeichen entfernen probieren",
-      "desc": "Bilder bereinigen, Text und Logos entfernen."
+      "desc": "Bilder bereinigen, indem Sie Text, Logos und unerwünschte Objekte entfernen."
     },
     "removeBackground": {
       "title": "Hintergrund entfernen",
@@ -496,6 +560,14 @@
     },
     "cyberpunk": {
       "title": "Cyberpunk-Stil anwenden"
+    },
+    "turnIntoDoodle": {
+      "title": "Werde zur Zeichnung",
+      "alt": "KI Doodle Filter - Verwandle dein Foto in eine handgezeichnete Skizze mit Lavie AI"
+    },
+    "turnIntoPlushie": {
+      "title": "Werden Sie ein Plüschtier",
+      "alt": "KI Plüschtier Filter - Verwandle dich in eine süße Plüschtier-Figur mit flauschiger Textur mit Lavie AI"
     },
     "restorePhoto": {
       "title": "Vintage-Foto restaurieren"

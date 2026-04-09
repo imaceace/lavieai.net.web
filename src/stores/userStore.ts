@@ -5,7 +5,7 @@ interface User {
   email: string;
   name: string;
   avatar: string;
-  subscription_type: "free" | "basic" | "pro" | "ultra";
+  subscription_type: "free" | "creator" | "plus" | "ultra";
   tier?: "free" | "basic" | "pro" | "max" | "ultra"; // Added tier explicitly
   subscription_expire?: number;
   created_at?: number;

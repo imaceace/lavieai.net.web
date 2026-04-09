@@ -48,8 +48,8 @@ const plans = [
     popular: false,
   },
   {
-    name: "Pro",
-    tier: "pro",
+    name: "Plus",
+    tier: "plus",
     price: 49.9,
     yearlyPrice: 39.9,
     pointsDesc: "3,000 credits monthly",
@@ -57,7 +57,7 @@ const plans = [
       { text: "3,000 subscription credits/mo", included: true },
       { text: "+ 50 daily login bonus credits", included: true },
       { text: "~750 Fast Mode images", included: true },
-      { text: "Access to Pro Use Cases", included: true },
+      { text: "Access to Plus Use Cases", included: true },
       { text: "Access to Max & Ultra models", included: true },
       { text: "Commercial License", included: true },
       { text: "Private Generations", included: true },
@@ -96,7 +96,8 @@ const plans = [
 const TIER_WEIGHT: Record<string, number> = {
   free: 0,
   basic: 1,
-  pro: 2,
+  plus: 2,
+  pro: 2, // legacy alias
   max: 3,
   ultra: 4,
 };

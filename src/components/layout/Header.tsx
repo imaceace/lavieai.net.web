@@ -53,8 +53,8 @@ export function Header() {
             email: userData.email,
             name: userData.name,
             avatar: userData.avatar || "",
-            subscription_type: (userData.tier || 'free') as any,
-            tier: (userData.tier || 'free') as any, // Explicitly map tier to the new field
+            subscription_type: (userData.subscription_type || 'free') as any,
+            tier: (userData.tier || 'basic') as any, // Routing tier (basic/pro/max/ultra)
             credits: userData.credits,
             subscription_expire: userData.subscription_expire,
             created_at: userData.created_at,
@@ -149,9 +149,9 @@ export function Header() {
     setIsDropdownOpen(false);
   };
 
-  // Helper function to render premium tier badges
-  const renderTierBadge = (tier?: string) => {
-    if (!tier || tier === 'free') {
+  // Helper function to render membership badges from subscription_type
+  const renderTierBadge = (subscriptionType?: string) => {
+    if (!subscriptionType || subscriptionType === 'free') {
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border"
           style={{ borderColor: isDarkMode ? '#3f3f46' : '#e5e7eb', color: isDarkMode ? '#a1a1aa' : '#6b7280' }}>
@@ -162,10 +162,12 @@ export function Header() {
     
     const config = {
       basic: { label: 'Creator', from: 'from-blue-500', to: 'to-cyan-400', icon: '✨' },
-      pro: { label: 'Pro', from: 'from-violet-500', to: 'to-fuchsia-500', icon: '🚀' },
-      max: { label: 'Max', from: 'from-rose-500', to: 'to-orange-400', icon: '⚡' },
+      creator: { label: 'Creator', from: 'from-blue-500', to: 'to-cyan-400', icon: '✨' }, // legacy alias
+      plus: { label: 'Plus', from: 'from-violet-500', to: 'to-fuchsia-500', icon: '🚀' },
+      pro: { label: 'Plus', from: 'from-violet-500', to: 'to-fuchsia-500', icon: '🚀' }, // legacy alias
       ultra: { label: 'Studio', from: 'from-amber-400', to: 'to-yellow-600', icon: '👑' },
-    }[tier] || { label: tier.charAt(0).toUpperCase() + tier.slice(1), from: 'from-gray-500', to: 'to-gray-400', icon: '🌟' };
+      studio: { label: 'Studio', from: 'from-amber-400', to: 'to-yellow-600', icon: '👑' }, // legacy alias
+    }[subscriptionType] || { label: subscriptionType.charAt(0).toUpperCase() + subscriptionType.slice(1), from: 'from-gray-500', to: 'to-gray-400', icon: '🌟' };
 
     return (
       <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm bg-gradient-to-r ${config.from} ${config.to}`}>
@@ -264,7 +266,7 @@ export function Header() {
                           <p className="text-sm font-bold truncate max-w-[100px]" style={{ color: isDarkMode ? '#e8e4df' : '#1f2937' }}>
                             {user.name || 'User'}
                           </p>
-                          {renderTierBadge(user.tier)}
+                          {renderTierBadge(user.subscription_type)}
                         </div>
                         <p className="text-xs truncate flex items-center gap-1 mt-1" style={{ color: isDarkMode ? '#9a948a' : '#6b7280' }}>
                           <span className="font-semibold" style={{ color: '#8b5cf6' }}>{user.credits}</span> credits

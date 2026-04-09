@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { flushSync } from "react-dom";
 import { useTranslations } from "next-intl";
 import {
   DropdownSelector,
@@ -8,7 +9,6 @@ import {
   GalleryShowcase,
   GenerationResult,
   InteractiveI2IShowcase,
-  FeatureDiscoveryGrid,
 } from "@/components/generator";
 import { useUserStore } from "@/stores/userStore";
 import { UpgradeModal } from "@/components/auth/UpgradeModal";
@@ -16,6 +16,8 @@ import { X, UploadCloud, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import { generateApi, pollTaskStatus, userApi, configApi, authApi, uploadApi } from "@/lib/api-client";
 import Script from "next/script";
+
+const RECENT_USECASE_IMAGE_KEY = "recentUseCaseImage";
 
 // Style icons mapping
 const styleIcons: Record<string, string> = {
@@ -103,6 +105,12 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [activeUseCase, setActiveUseCase] = useState<string>('general');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const useCaseFileInputRef = useRef<HTMLInputElement>(null);
+  const [isUseCaseUploadModalOpen, setIsUseCaseUploadModalOpen] = useState(false);
+  const [pendingUseCaseData, setPendingUseCaseData] = useState<any | null>(null);
+  const [pendingUseCaseImage, setPendingUseCaseImage] = useState<{ url: string; id: string } | null>(null);
+  const [recentUseCaseImage, setRecentUseCaseImage] = useState<{ url: string; id: string } | null>(null);
+  const [isUseCaseUploading, setIsUseCaseUploading] = useState(false);
 
   // User points state
   const [userCredits, setUserCredits] = useState<number | null>(null);
@@ -114,6 +122,40 @@ export default function Home() {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [upgradeModalTitle, setUpgradeModalTitle] = useState("");
   const [upgradeModalSubtitle, setUpgradeModalSubtitle] = useState("");
+  const handleGenerateRef = useRef<(() => Promise<void>) | null>(null);
+  type GenerationIntent =
+    | {
+        kind: "text-to-image";
+        prompt: string;
+        negativePrompt?: string;
+        style?: string;
+        resolution: [number, number];
+        model: string;
+        fastMode: boolean;
+        useCase?: string;
+      }
+    | {
+        kind: "image-to-image";
+        prompt: string;
+        negativePrompt?: string;
+        style?: string;
+        resolution: [number, number];
+        model: string;
+        fastMode: boolean;
+        useCase?: string;
+        strength?: number;
+        imageUrl: string;
+        imageId: string;
+      }
+    | {
+        kind: "image-to-image-use-case";
+        useCase: string;
+        imageUrl: string;
+        imageId: string;
+        fastMode: boolean;
+        resolution: [number, number];
+      };
+  const [lastGenerationIntent, setLastGenerationIntent] = useState<GenerationIntent | null>(null);
 
   // Track last manual action for "Last Operation Wins" logic
   const lastPromptEditTime = useRef<number>(0);
@@ -166,6 +208,20 @@ export default function Home() {
   }, [user]);
 
   useEffect(() => {
+    const storedRecentImage = sessionStorage.getItem(RECENT_USECASE_IMAGE_KEY);
+    if (storedRecentImage) {
+      try {
+        const parsed = JSON.parse(storedRecentImage);
+        if (parsed?.url && parsed?.id) {
+          setRecentUseCaseImage({ url: parsed.url, id: parsed.id });
+        } else {
+          sessionStorage.removeItem(RECENT_USECASE_IMAGE_KEY);
+        }
+      } catch {
+        sessionStorage.removeItem(RECENT_USECASE_IMAGE_KEY);
+      }
+    }
+
     // Fetch generation options from API (styles, colors, etc.)
     configApi.getGenerationOptions().then(options => {
       if (options) {
@@ -234,13 +290,17 @@ export default function Home() {
   }, []);
 
   // Generation cost based on model tier and fast mode
-  const getGenerationCost = () => {
-    if (model === 'basic') {
+  const getGenerationCost = (
+    targetModel: string = model,
+    targetResolution: [number, number] = resolution,
+    targetQuality: 1 | 2 | 4 = quality
+  ) => {
+    if (targetModel === 'basic') {
       return fastMode ? 4 : 0;
     }
     
-    const [width, height] = resolution || [1024, 1024];
-    const finalResolution = [width * quality, height * quality];
+    const [width, height] = targetResolution || [1024, 1024];
+    const finalResolution = [width * targetQuality, height * targetQuality];
     const pixels = finalResolution[0] * finalResolution[1];
     const is4K = pixels > 2048 * 2048;
     const is2K = pixels > 1024 * 1024 && pixels <= 2048 * 2048;
@@ -250,12 +310,61 @@ export default function Home() {
       max: is4K ? 54 : (is2K ? 36 : 24),
       ultra: is4K ? 108 : (is2K ? 81 : 54)
     };
-    return generationCosts[model] || 15;
+    return generationCosts[targetModel] || 15;
   };
   const generationCost = getGenerationCost();
+  const currentUserTier = ((user as any)?.tier || (user as any)?.subscription_type || 'free').toLowerCase();
+  const shouldShowFreePlanBanner = !user || currentUserTier === 'free' || currentUserTier === 'guest';
+
+  const getAutoModelByTier = () => {
+    const tier = currentUserTier;
+    if (tier === 'creator' || tier === 'basic') return 'pro';
+    if (tier === 'pro' || tier === 'max') return 'max';
+    if (tier === 'studio' || tier === 'ultra') return 'ultra';
+    return 'basic';
+  };
+
+  const runGenerationByIntent = async (intent: GenerationIntent) => {
+    const task =
+      intent.kind === "text-to-image"
+        ? await generateApi.textToImage({
+            prompt: intent.prompt,
+            negativePrompt: intent.negativePrompt,
+            style: intent.style,
+            resolution: intent.resolution,
+            model: intent.model,
+            fastMode: intent.fastMode,
+            useCase: intent.useCase,
+          })
+        : intent.kind === "image-to-image"
+          ? await generateApi.imageToImage({
+              prompt: intent.prompt,
+              negativePrompt: intent.negativePrompt,
+              style: intent.style,
+              resolution: intent.resolution,
+              model: intent.model,
+              fastMode: intent.fastMode,
+              imageUrl: intent.imageUrl,
+              imageId: intent.imageId,
+              useCase: intent.useCase,
+              strength: intent.strength,
+            })
+          : await generateApi.imageToImageUseCase({
+              useCase: intent.useCase,
+              imageUrl: intent.imageUrl,
+              imageId: intent.imageId,
+              fastMode: intent.fastMode,
+              resolution: intent.resolution,
+            });
+
+    return pollTaskStatus(task.id, undefined, 2000, 60);
+  };
 
   const handleGenerate = async () => {
-    if (!prompt.trim()) return;
+    if (!prompt.trim()) {
+      addToast("Prompt is empty. Please enter a prompt first.", "info");
+      return;
+    }
     if (userCredits !== null && userCredits < generationCost) {
       setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
       setUpgradeModalSubtitle(t('generator.notEnoughCredits', { cost: generationCost }));
@@ -295,54 +404,33 @@ export default function Home() {
     }
 
     try {
-      let task;
       const finalResolution: [number, number] = [resolution[0] * quality, resolution[1] * quality];
-
-      // Reset any previous daily limit warnings
-      const resHeaders = new Headers();
-      
-      const onResponse = (res: Response) => {
-        if (res.headers.get('X-Daily-Limit-Warning') === 'true') {
-          // Show soft warning without interrupting generation
-          addToast('You are approaching your daily limit of 20 free generations.', 'info');
-        }
-      };
-
-      if (referenceImage) {
-        task = await generateApi.imageToImage({
-          prompt: finalPrompt,
-          negativePrompt: showNegativePrompt ? negativePrompt : undefined,
-          style: style || undefined,
-          resolution: finalResolution,
-          model: model,
-          fastMode: fastMode,
-          imageUrl: referenceImage.url,
-          imageId: referenceImage.id,
-          useCase: activeUseCase !== 'general' ? activeUseCase : undefined,
-          strength: strength,
-        });
-      } else {
-        task = await generateApi.textToImage({
-          prompt: finalPrompt,
-          negativePrompt: showNegativePrompt ? negativePrompt : undefined,
-          style: style || undefined,
-          resolution: finalResolution,
-          model: model,
-          fastMode: fastMode,
-          useCase: activeUseCase !== 'general' ? activeUseCase : undefined,
-        });
-      }
-
-      const completedTask = await pollTaskStatus(
-        task.id,
-        (t) => {
-          if (t.status === 'processing') {
-            // Could show progress here
+      const intent: GenerationIntent = referenceImage
+        ? {
+            kind: "image-to-image",
+            prompt: finalPrompt,
+            negativePrompt: showNegativePrompt ? negativePrompt : undefined,
+            style: style || undefined,
+            resolution: finalResolution,
+            model,
+            fastMode,
+            imageUrl: referenceImage.url,
+            imageId: referenceImage.id,
+            useCase: activeUseCase !== "general" ? activeUseCase : undefined,
+            strength,
           }
-        },
-        2000,
-        60
-      );
+        : {
+            kind: "text-to-image",
+            prompt: finalPrompt,
+            negativePrompt: showNegativePrompt ? negativePrompt : undefined,
+            style: style || undefined,
+            resolution: finalResolution,
+            model,
+            fastMode,
+            useCase: activeUseCase !== "general" ? activeUseCase : undefined,
+          };
+      setLastGenerationIntent(intent);
+      const completedTask = await runGenerationByIntent(intent);
 
       if (completedTask.result_url) {
         setResult({ imageUrl: completedTask.result_url });
@@ -368,6 +456,7 @@ export default function Home() {
       setIsGenerating(false);
     }
   };
+  handleGenerateRef.current = handleGenerate;
 
   const handleUsePrompt = (p: string) => {
     setPrompt(p);
@@ -393,7 +482,7 @@ export default function Home() {
   };
 
   const handleSelectUseCase = (useCaseData: any) => {
-    const params = useCaseData.params;
+    const params = useCaseData.params || {};
     const requiredTier = useCaseData.requiredTier || 'free';
     
     const TIER_WEIGHT: Record<string, number> = {
@@ -414,26 +503,154 @@ export default function Home() {
       return;
     }
 
-    setPrompt(params.prompt || "");
-    if (params.negativePrompt) setNegativePrompt(params.negativePrompt);
-    if (params.style) setStyle(params.style);
-    if (params.resolution) setResolution(params.resolution);
-    if (params.useCase) setActiveUseCase(params.useCase);
-    if (params.strength !== undefined) setStrength(params.strength);
-    
-    // Auto-switch to Image to Image mode if the use case requires it
-    if (useCaseData.id !== 'general' && !referenceImage) {
-      // In a real app, you might want to show a placeholder or prompt the user to upload an image first
-      addToast('Please upload a reference image to use this feature.', 'info');
+    // H3 图生图入口：先弹出选图浮窗，选图后再回填参数并自动提交
+    setPendingUseCaseData(useCaseData);
+    setPendingUseCaseImage(recentUseCaseImage);
+    setIsUseCaseUploadModalOpen(true);
+  };
+
+  const handleUseCaseFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !pendingUseCaseData) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      addToast("File is too large. Maximum size is 10MB.", "error");
+      return;
     }
 
-    setTimeout(() => {
-      const generatorSection = document.getElementById('generator');
-      if (generatorSection) {
-        generatorSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 100);
+    const params = pendingUseCaseData.params || {};
+    const targetUseCase = params.useCase || pendingUseCaseData.id || 'general';
+
+    try {
+      setIsUseCaseUploading(true);
+      const data = await uploadApi.uploadImage(file, targetUseCase);
+      const imageData = { url: data.url, id: data.id };
+      setPendingUseCaseImage(imageData);
+      setRecentUseCaseImage(imageData);
+      sessionStorage.setItem(RECENT_USECASE_IMAGE_KEY, JSON.stringify(imageData));
+      addToast(t('generator.useCaseUploadModal.uploadedNotice'), "info");
+    } catch (err: any) {
+      addToast(err.message || "Upload failed", "error");
+    } finally {
+      setIsUseCaseUploading(false);
+      if (useCaseFileInputRef.current) useCaseFileInputRef.current.value = '';
+    }
   };
+
+  const handleGeneratePendingUseCase = async () => {
+    if (!pendingUseCaseData || !pendingUseCaseImage) {
+      addToast(t('generator.useCaseUploadModal.uploadFirstNotice'), "info");
+      return;
+    }
+
+    const params = pendingUseCaseData.params || {};
+    const targetUseCase = params.useCase || pendingUseCaseData.id || 'general';
+
+    const generatorSection = document.getElementById('generator');
+    if (generatorSection) {
+      generatorSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    setIsUseCaseUploadModalOpen(false);
+    setPendingUseCaseData(null);
+    setIsGenerating(true);
+
+    try {
+      const intent: GenerationIntent = {
+        kind: "image-to-image-use-case",
+        useCase: targetUseCase,
+        imageUrl: pendingUseCaseImage.url,
+        imageId: pendingUseCaseImage.id,
+        fastMode,
+        resolution: params.resolution || resolution,
+      };
+      setLastGenerationIntent(intent);
+      const completedTask = await runGenerationByIntent(intent);
+      if (completedTask.result_url) {
+        setResult({ imageUrl: completedTask.result_url });
+        const userProfile = await authApi.getMe();
+        if (userProfile) {
+          useUserStore.getState().setUser(userProfile as any);
+          setUserCredits(userProfile.credits);
+        }
+      }
+    } catch (error) {
+      const errorCode = (error as any)?.code;
+      if (errorCode === 'RESOLUTION_LIMIT' || errorCode === 'UPGRADE_REQUIRED' || errorCode === 'DAILY_LIMIT_EXCEEDED') {
+        setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
+        setUpgradeModalSubtitle(error instanceof Error ? error.message : t('generator.upgradeRequired'));
+        setIsUpgradeModalOpen(true);
+      } else {
+        addToast(error instanceof Error ? error.message : t('generator.generationFailed'), 'error');
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (isGenerating) return;
+    if (!lastGenerationIntent) {
+      addToast("No previous generation parameters found. Please generate once first.", "info");
+      return;
+    }
+
+    setIsGenerating(true);
+    setResult(null);
+    try {
+      const completedTask = await runGenerationByIntent(lastGenerationIntent);
+      if (completedTask.result_url) {
+        setResult({ imageUrl: completedTask.result_url });
+        const userProfile = await authApi.getMe();
+        if (userProfile) {
+          useUserStore.getState().setUser(userProfile as any);
+          setUserCredits(userProfile.credits);
+        }
+      }
+    } catch (error) {
+      console.error("Regenerate error:", error);
+      const errorCode = (error as any)?.code;
+      if (errorCode === 'RESOLUTION_LIMIT' || errorCode === 'UPGRADE_REQUIRED' || errorCode === 'DAILY_LIMIT_EXCEEDED') {
+        setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
+        setUpgradeModalSubtitle(error instanceof Error ? error.message : t('generator.upgradeRequired'));
+        setIsUpgradeModalOpen(true);
+      } else {
+        addToast(error instanceof Error ? error.message : t('generator.generationFailed'), 'error');
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const formatUseCaseFallbackTitle = (value: string) =>
+    value
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/[-_]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^./, (char) => char.toUpperCase());
+
+  const pendingUseCaseTitle = pendingUseCaseData
+    ? (() => {
+        if (pendingUseCaseData.tabLabel) return pendingUseCaseData.tabLabel;
+        if (pendingUseCaseData.titleKey) {
+          try {
+            return t(pendingUseCaseData.titleKey as any);
+          } catch {
+            return formatUseCaseFallbackTitle(String(pendingUseCaseData.id || pendingUseCaseData.titleKey));
+          }
+        }
+        return formatUseCaseFallbackTitle(String(pendingUseCaseData.id || "use case"));
+      })()
+    : "";
+  const pendingUseCaseModel = getAutoModelByTier();
+  const pendingUseCaseCost = pendingUseCaseData
+    ? getGenerationCost(
+        pendingUseCaseModel,
+        pendingUseCaseData?.params?.resolution || resolution,
+        pendingUseCaseModel === 'basic' ? 1 : quality
+      )
+    : generationCost;
 
   const professionalSubjects: Record<string, string[]> = {
     "photographic": [
@@ -1055,6 +1272,26 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {isGenerating && (
+            <div
+              className="mt-4 rounded-2xl border p-4 flex items-center gap-3"
+              style={{
+                borderColor: 'var(--gen-border)',
+                background: 'var(--gen-input-bg)',
+              }}
+            >
+              <Loader2 className="w-5 h-5 animate-spin text-rose-500" />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--gen-text)' }}>
+                  {t('generator.generating')}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--gen-text-muted)' }}>
+                  Generation is in progress. Please wait, this may take around 10-30 seconds.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -1081,33 +1318,35 @@ export default function Home() {
                   style={style}
                   width={resolution[0]}
                   height={resolution[1]}
-                  onRegenerate={handleGenerate}
+                  onRegenerate={handleRegenerate}
                 />
               </div>
             </div>
 
-            {/* Upgrade Prompt Banner */}
-            <div className="rounded-2xl overflow-hidden bg-gradient-to-br from-rose-100 to-amber-100 border border-rose-200 dark:from-rose-950/40 dark:to-amber-950/40 dark:border-rose-900">
-              <div className="px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <p className="font-bold text-base mb-0.5 text-rose-900 dark:text-rose-200">
-                    {t('results.freePlan')}
-                  </p>
-                  <p className="text-sm text-rose-700 dark:text-rose-300/80">
-                    {t('results.upgradePrompt')}
-                  </p>
+            {/* Upgrade Prompt Banner (Free/Guest only) */}
+            {shouldShowFreePlanBanner && (
+              <div className="rounded-2xl overflow-hidden bg-gradient-to-br from-rose-100 to-amber-100 border border-rose-200 dark:from-rose-950/40 dark:to-amber-950/40 dark:border-rose-900">
+                <div className="px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <p className="font-bold text-base mb-0.5 text-rose-900 dark:text-rose-200">
+                      {t('results.freePlan')}
+                    </p>
+                    <p className="text-sm text-rose-700 dark:text-rose-300/80">
+                      {t('results.upgradePrompt')}
+                    </p>
+                  </div>
+                  <a
+                    href="/pricing"
+                    className="flex-shrink-0 px-6 py-2.5 rounded-full font-semibold text-sm transition-all hover:opacity-90 text-white shadow-lg shadow-rose-200/50 dark:shadow-rose-900/50"
+                    style={{
+                      background: 'linear-gradient(135deg, #f43f5e, #f59e0b)',
+                    }}
+                  >
+                    {t('results.upgradeBtn')}
+                  </a>
                 </div>
-                <a
-                  href="/pricing"
-                  className="flex-shrink-0 px-6 py-2.5 rounded-full font-semibold text-sm transition-all hover:opacity-90 text-white shadow-lg shadow-rose-200/50 dark:shadow-rose-900/50"
-                  style={{
-                    background: 'linear-gradient(135deg, #f43f5e, #f59e0b)',
-                  }}
-                >
-                  {t('results.upgradeBtn')}
-                </a>
               </div>
-            </div>
+            )}
           </div>
         </section>
       )}
@@ -1147,8 +1386,12 @@ export default function Home() {
           
           {/* Top 6 Interactive Showcase */}
           <InteractiveI2IShowcase onSelectUseCase={handleSelectUseCase} />
-          
-          {/* Divider & Sub-heading for more tools (Visual only, no SEO weight) */}
+
+          {/*
+          暂时注释保留：原 Transform Your Image / Explore More 区块
+          已将 ghibliStyle、pixarStyle、ps2Retro、gtaStyle、legoStyle、turnIntoCyborg、
+          pixelArt、pencilSketch、petRoyalPainting 迁移到 Before/After 区域。
+
           <div className="mt-20 mb-8 flex items-center justify-between">
             <span className="text-2xl font-bold block" style={{ color: 'var(--gen-text)' }}>
               {t('homepage.exploreMore.title')}
@@ -1157,9 +1400,9 @@ export default function Home() {
           <p className="mb-8 text-base" style={{ color: 'var(--gen-text-muted)' }}>
             {t('homepage.exploreMore.subtitle')}
           </p>
-          
-          {/* Long-tail SEO Grid */}
+
           <FeatureDiscoveryGrid onSelectUseCase={handleSelectUseCase} />
+          */}
         </div>
       </section>
 
@@ -1443,6 +1686,135 @@ export default function Home() {
         title={upgradeModalTitle}
         subtitle={upgradeModalSubtitle}
       />
+
+      {isUseCaseUploadModalOpen && pendingUseCaseData && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl border p-5" style={{ background: 'var(--gen-bg)', borderColor: 'var(--gen-border)' }}>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-lg font-bold" style={{ color: 'var(--gen-text)' }}>{pendingUseCaseTitle}</h3>
+                <p className="text-sm mt-1" style={{ color: 'var(--gen-text-muted)' }}>
+                  {pendingUseCaseImage ? t('generator.useCaseUploadModal.ready') : t('generator.useCaseUploadModal.subtitle')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUseCaseUploadModalOpen(false);
+                  setPendingUseCaseData(null);
+                }}
+                className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="rounded-xl border p-3 mb-4" style={{ borderColor: 'var(--gen-border)' }}>
+              <div className="flex items-center justify-between text-sm mt-2">
+                <span style={{ color: 'var(--gen-text-muted)' }}>{t('generator.useCaseUploadModal.cost')}</span>
+                <span className="font-semibold" style={{ color: 'var(--gen-text)' }}>
+                  {pendingUseCaseCost} {tCommon('pts')}
+                </span>
+              </div>
+            </div>
+
+            <input
+              type="file"
+              ref={useCaseFileInputRef}
+              onChange={handleUseCaseFileUpload}
+              accept="image/*"
+              className="hidden"
+            />
+            {!pendingUseCaseImage && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => useCaseFileInputRef.current?.click()}
+                  disabled={isUseCaseUploading}
+                  className="flex-1 px-4 py-2.5 rounded-full font-semibold transition-all text-white disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ background: 'linear-gradient(90deg, #7c3aed, #f43f5e, #f59e0b)' }}
+                >
+                  {isUseCaseUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {t('generator.useCaseUploadModal.uploading')}
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-4 h-4" />
+                      {t('generator.useCaseUploadModal.chooseImage')}
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUseCaseUploadModalOpen(false);
+                    setPendingUseCaseData(null);
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-full font-semibold transition-all border"
+                  style={{ borderColor: 'var(--gen-border)', color: 'var(--gen-text)' }}
+                >
+                  {t('generator.useCaseUploadModal.cancel')}
+                </button>
+              </div>
+            )}
+
+            {pendingUseCaseImage && (
+              <div
+                className="w-full h-56 rounded-xl border mt-3 p-2 flex items-center justify-center overflow-hidden relative"
+                style={{ borderColor: 'var(--gen-border)', background: 'var(--gen-input-bg)' }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingUseCaseImage(null);
+                    setRecentUseCaseImage(null);
+                    sessionStorage.removeItem(RECENT_USECASE_IMAGE_KEY);
+                  }}
+                  className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 flex items-center justify-center"
+                  aria-label={t('generator.useCaseUploadModal.removeImage')}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <img
+                  src={pendingUseCaseImage.url}
+                  alt="Selected"
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            )}
+
+            {pendingUseCaseImage && (
+              <div className="mt-3 space-y-2">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGeneratePendingUseCase}
+                    disabled={isUseCaseUploading || isGenerating}
+                    className="flex-1 px-4 py-2.5 rounded-full font-semibold transition-all text-white disabled:opacity-70 disabled:cursor-not-allowed"
+                    style={{ background: 'linear-gradient(90deg, #111827, #374151)' }}
+                  >
+                    {t('generator.generate')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUseCaseUploadModalOpen(false);
+                      setPendingUseCaseData(null);
+                    }}
+                    className="flex-1 px-4 py-2.5 rounded-full font-semibold transition-all border"
+                    style={{ borderColor: 'var(--gen-border)', color: 'var(--gen-text)' }}
+                  >
+                    {t('generator.useCaseUploadModal.cancel')}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

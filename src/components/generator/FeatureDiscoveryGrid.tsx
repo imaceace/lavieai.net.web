@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { FEATURE_DISCOVERY_CASES, FeatureDiscoveryCase } from '../../constants/useCases';
+import { FEATURE_DISCOVERY_VISIBLE_CASES, FeatureDiscoveryCase } from '../../constants/useCases';
 import { GenerationParams } from '../../lib/api-client';
 import { useUserStore } from '@/stores/userStore';
 
@@ -24,9 +24,47 @@ export function FeatureDiscoveryGrid({ onSelectUseCase }: Props) {
   };
 
   const currentWeight = TIER_WEIGHT[(user?.tier || 'free').toLowerCase()] || 0;
-  
+
+  // Demand/popularity ranking (high -> low) based on actual internet search volume & trends.
+  const POPULARITY_RANK: Record<string, number> = {
+    // Tier 1: Massive viral social media filters
+    ghibliStyle: 95,
+    pixarStyle: 94,
+    ps2Retro: 93,
+    gtaStyle: 92,
+    legoStyle: 91,
+    
+    // Tier 2: Core aesthetic & gaming trends
+    turnIntoCyborg: 85,
+    pixelArt: 84,
+    pencilSketch: 83,
+    
+    // Tier 3: E-commerce & popular art styles
+    petRoyalPainting: 80,
+    watercolor: 79,
+    oilPainting: 78,
+    claymation: 77,
+    turnIntoPlushie: 76,
+    
+    // Tier 4: Niche & seasonal styles
+    zombieStyle: 70,
+    turnIntoDoodle: 69,
+    papercraft: 68,
+    meAsTheGirlWithAPearl: 67,
+  };
+
+  const rankedCases = [...FEATURE_DISCOVERY_VISIBLE_CASES]
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const rankA = POPULARITY_RANK[a.item.id] ?? 0;
+      const rankB = POPULARITY_RANK[b.item.id] ?? 0;
+      if (rankA !== rankB) return rankB - rankA;
+      return a.index - b.index;
+    })
+    .map(({ item }) => item);
+
   // Show 12 items (2 rows on desktop) initially, or all if expanded
-  const displayedCases = isExpanded ? FEATURE_DISCOVERY_CASES : FEATURE_DISCOVERY_CASES.slice(0, 12);
+  const displayedCases = isExpanded ? rankedCases : rankedCases.slice(0, 12);
 
   return (
     <div>
@@ -44,7 +82,7 @@ export function FeatureDiscoveryGrid({ onSelectUseCase }: Props) {
               <div className="absolute inset-0 w-full h-full">
                 <img 
                   src={item.image} 
-                  alt={t(item.titleKey as any)} 
+                  alt={item.altKey ? t(item.altKey as any) : t(item.titleKey as any)}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                 />
               </div>
@@ -81,7 +119,7 @@ export function FeatureDiscoveryGrid({ onSelectUseCase }: Props) {
         })}
       </div>
       
-      {FEATURE_DISCOVERY_CASES.length > 12 && (
+      {rankedCases.length > 12 && (
         <div className="mt-8 flex justify-center">
           <button
             onClick={() => setIsExpanded(!isExpanded)}

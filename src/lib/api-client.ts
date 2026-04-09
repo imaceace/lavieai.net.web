@@ -36,7 +36,8 @@ interface User {
   email: string;
   name: string;
   avatar?: string;
-  tier: 'free' | 'basic' | 'pro' | 'ultra';
+  subscription_type: 'free' | 'creator' | 'plus' | 'ultra';
+  tier: 'free' | 'basic' | 'pro' | 'max' | 'ultra';
   credits: number;
   subscription_expire?: number;
   created_at?: number;
@@ -112,7 +113,8 @@ export const authApi = {
         email: u.email,
         name: u.name,
         avatar: u.avatar || "",
-        tier: u.tier || 'free',
+        subscription_type: (u.subscription_type || 'free'),
+        tier: (u.tier || 'basic'),
         credits: u.credits ?? 0,
         subscription_expire: u.subscription_expire,
         created_at: u.created_at,
@@ -212,6 +214,125 @@ export const adminApi = {
     } catch (e) {
       return { success: false, error: { message: (e as Error).message || 'Network error' } };
     }
+  },
+
+  getRoutingModels: async (params?: { task_type?: string; tier?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.task_type) query.set('task_type', params.task_type);
+    if (params?.tier) query.set('tier', params.tier);
+    const res = await fetch(`${API_BASE}/api/admin/routing/models?${query.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return res.json();
+  },
+
+  getRoutingPolicies: async (params?: { use_case?: string; task_type?: string; tier?: string; model?: string; include_inactive?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params?.use_case) query.set('use_case', params.use_case);
+    if (params?.task_type) query.set('task_type', params.task_type);
+    if (params?.tier) query.set('tier', params.tier);
+    if (params?.model) query.set('model', params.model);
+    if (params?.include_inactive) query.set('include_inactive', 'true');
+    const res = await fetch(`${API_BASE}/api/admin/routing/policies?${query.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return res.json();
+  },
+
+  upsertRoutingPolicy: async (payload: {
+    id: string;
+    use_case: string;
+    task_type: string;
+    tier: 'basic' | 'pro' | 'max' | 'ultra';
+    primary_model: string;
+    fallback_models: string[];
+    strength_min?: number | null;
+    strength_max?: number | null;
+    weight_quality: number;
+    weight_cost: number;
+    weight_speed: number;
+    is_active: 0 | 1;
+  }) => {
+    const res = await fetch(`${API_BASE}/api/admin/routing/policies/upsert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+
+  toggleRoutingPolicy: async (id: string, is_active: 0 | 1) => {
+    const res = await fetch(`${API_BASE}/api/admin/routing/policies/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ id, is_active }),
+    });
+    return res.json();
+  },
+
+  previewRouting: async (payload: { use_case: string; tier: 'basic' | 'pro' | 'max' | 'ultra'; width?: number; height?: number }) => {
+    const res = await fetch(`${API_BASE}/api/admin/routing/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+
+  getPricingPolicies: async (params?: { use_case?: string; task_type?: string; tier?: string; include_inactive?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params?.use_case) query.set('use_case', params.use_case);
+    if (params?.task_type) query.set('task_type', params.task_type);
+    if (params?.tier) query.set('tier', params.tier);
+    if (params?.include_inactive) query.set('include_inactive', 'true');
+    const res = await fetch(`${API_BASE}/api/admin/pricing/policies?${query.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return res.json();
+  },
+
+  upsertPricingPolicy: async (payload: any) => {
+    const res = await fetch(`${API_BASE}/api/admin/pricing/policies/upsert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+
+  togglePricingPolicy: async (id: string, is_active: 0 | 1) => {
+    const res = await fetch(`${API_BASE}/api/admin/pricing/policies/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ id, is_active }),
+    });
+    return res.json();
+  },
+
+  getCacheKeys: async () => {
+    const res = await fetch(`${API_BASE}/api/admin/cache/keys`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return res.json();
+  },
+
+  purgeCache: async (payload: { scope: 'all' | 'smart-routing' | 'keys'; keys?: string[] }) => {
+    const res = await fetch(`${API_BASE}/api/admin/cache/purge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
   }
 };
 
@@ -304,10 +425,16 @@ export const generateApi = {
       headers,
       body: JSON.stringify({
         prompt: params.prompt,
+        negative_prompt: params.negativePrompt,
         style: params.style,
         strength: params.strength ?? 0.5,
         model: params.model || 'basic',
         imageUrl: params.imageUrl,
+        imageId: params.imageId,
+        width: params.resolution?.[0] || 1024,
+        height: params.resolution?.[1] || 1024,
+        resolution: params.resolution,
+        fast_mode: params.fastMode,
         useCase: params.useCase,
       }),
     });
@@ -351,6 +478,61 @@ export const generateApi = {
     return {
       id: raw.data.workId,
       prompt: params.prompt,
+      tool_type: 'image-to-image' as const,
+      status: raw.data.status as Task['status'],
+      created_at: Date.now() / 1000,
+    };
+  },
+
+  imageToImageUseCase: async (
+    params: { useCase: string; imageUrl: string; imageId?: string; fastMode?: boolean; resolution?: [number, number] },
+    onResponse?: (res: Response) => void,
+    turnstileToken?: string
+  ): Promise<Task> => {
+    const fingerprint = await getFingerprint();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Fingerprint': fingerprint,
+    };
+    if (turnstileToken) headers['X-Turnstile-Token'] = turnstileToken;
+
+    const res = await fetch(`${API_BASE}/api/generate/image-to-image/use-case`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({
+        useCase: params.useCase,
+        imageUrl: params.imageUrl,
+        imageId: params.imageId,
+        fast_mode: params.fastMode,
+        resolution: params.resolution,
+        enforceUseCaseTemplate: true,
+      }),
+    });
+    if (onResponse) onResponse(res);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: { message: 'Generation failed', code: 'UNKNOWN_ERROR' } }));
+      const code = err.error?.code || 'UNKNOWN_ERROR';
+      if (code === 'CHALLENGE_REQUIRED' && !turnstileToken) {
+        const { useTurnstileStore } = await import('@/stores/turnstileStore');
+        const newToken = await useTurnstileStore.getState().requestChallenge();
+        return generateApi.imageToImageUseCase(params, onResponse, newToken);
+      }
+      const errorObj = new Error(err.error?.message || 'Generation failed');
+      (errorObj as any).code = code;
+      throw errorObj;
+    }
+
+    const raw = await res.json();
+    if (!raw.success || !raw.data) {
+      const errorObj = new Error(raw.error?.message || 'Generation failed');
+      (errorObj as any).code = raw.error?.code || 'UNKNOWN_ERROR';
+      throw errorObj;
+    }
+    return {
+      id: raw.data.workId,
+      prompt: params.useCase,
       tool_type: 'image-to-image' as const,
       status: raw.data.status as Task['status'],
       created_at: Date.now() / 1000,

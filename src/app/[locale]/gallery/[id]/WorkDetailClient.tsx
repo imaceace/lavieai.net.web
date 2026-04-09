@@ -99,6 +99,7 @@ export function WorkDetailClient({
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingRelated, setIsLoadingRelated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewBgMode, setPreviewBgMode] = useState<"white" | "checker" | "dark">("checker");
 
   useEffect(() => {
     const fetchWork = async () => {
@@ -158,6 +159,22 @@ export function WorkDetailClient({
 
   const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
+
+  const getPreviewBgStyle = () => {
+    if (previewBgMode === "white") {
+      return { backgroundColor: "#ffffff" };
+    }
+    if (previewBgMode === "dark") {
+      return { backgroundColor: "#111827" };
+    }
+    return {
+      backgroundColor: "#ffffff",
+      backgroundImage:
+        "linear-gradient(45deg, #e5e7eb 25%, transparent 25%), linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e7eb 75%), linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)",
+      backgroundSize: "20px 20px",
+      backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px"
+    };
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -337,7 +354,28 @@ export function WorkDetailClient({
       <div className="container mx-auto px-4 pb-12">
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
-            <div className="relative bg-gradient-to-br from-rose-50 to-violet-50">
+            <div className="px-4 pt-4 pb-2 flex items-center justify-end gap-2">
+              {(["white", "checker", "dark"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPreviewBgMode(mode)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    previewBgMode === mode
+                      ? "border-gray-900 bg-gray-900 text-white"
+                      : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {mode === "white" ? "White" : mode === "checker" ? "Checker" : "Dark"}
+                </button>
+              ))}
+            </div>
+            <div
+              className="relative"
+              style={{
+                ...getPreviewBgStyle()
+              }}
+            >
               {imageUrl ? (
                 <>
                   <img
