@@ -122,8 +122,11 @@ export default function PricingPage() {
   const t = useTranslations("pricing");
   const { addToast } = useToast();
   const { isLoggedIn, openLoginModal, user } = useUserStore();
-  const isWhitelisted = user?.isWhitelisted;
+  const isWhitelisted = Boolean(user?.isWhitelisted);
   const canBuyPoints = user?.canBuyPoints;
+  const isSubscriptionClosedBeta = process.env.NEXT_PUBLIC_SUBSCRIPTION_CLOSED_BETA !== "false";
+  const hasPaidPlanAccess = !isSubscriptionClosedBeta || isWhitelisted;
+  const showWaitlistBanner = isSubscriptionClosedBeta && !hasPaidPlanAccess;
   
   const pointPackages = canBuyPoints 
     ? [{ points: 1, price: 0.02, perPoint: 0.02, id: "1" }, ...defaultPointPackages]
@@ -217,8 +220,8 @@ export default function PricingPage() {
       return;
     }
     
-    if (!isWhitelisted && plan.price > 0) {
-      return; // Internal testing restriction
+    if (!hasPaidPlanAccess && plan.price > 0) {
+      return;
     }
     
     const planWeight = TIER_WEIGHT[plan.tier] ?? 0;
@@ -368,7 +371,7 @@ export default function PricingPage() {
       </div>
 
       {/* Beta Waitlist Banner */}
-      {!isWhitelisted && (
+      {showWaitlistBanner && (
         <div className="bg-indigo-50 border-y border-indigo-100 py-8 px-4">
           <div className="container mx-auto max-w-2xl text-center">
             <h2 className="text-2xl font-bold text-indigo-900 mb-2">Join our Closed Beta Waitlist</h2>
@@ -450,40 +453,38 @@ export default function PricingPage() {
                     ))}
                   </ul>
 
-                  <button
-                    onClick={() => handlePlanClick(plan)}
-                    disabled={
-                      isCheckoutCooldown ||
-                      (purchasePaused && plan.price > 0) ||
-                      (isLoggedIn && !isWhitelisted && plan.price > 0) || 
-                      (TIER_WEIGHT[plan.tier] < currentWeight && currentWeight > 0 && plan.price > 0)
-                    }
-                    className={`block w-full text-center px-6 py-3 rounded-lg font-medium transition-colors ${
-                      isCheckoutCooldown
-                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                        : isLoggedIn && !isWhitelisted && plan.price > 0
-                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                        : TIER_WEIGHT[plan.tier] < currentWeight && currentWeight > 0 && plan.price > 0
-                        ? "bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200"
-                        : isCurrentPlan(plan)
-                        ? "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300"
-                        : plan.popular
-                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                        : "border border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    {plan.price === 0 
-                      ? t('getStarted') 
-                      : (purchasePaused && plan.price > 0 ? "Temporarily Paused" :
-                         isCheckoutCooldown ? `Please wait (${checkoutCooldownSeconds}s)` :
-                         isLoggedIn && !isWhitelisted ? 'Internal Testing' : 
-                          isCurrentPlan(plan) ? 'Current Plan' :
-                          TIER_WEIGHT[plan.tier] > currentWeight && currentWeight > 0 ? 'Upgrade' :
-                          TIER_WEIGHT[plan.tier] < currentWeight && currentWeight > 0 ? 'Unavailable' :
-                          t('subscribe')
-                        )
-                    }
-                  </button>
+                  {(plan.price === 0 || hasPaidPlanAccess) && (
+                    <button
+                      onClick={() => handlePlanClick(plan)}
+                      disabled={
+                        isCheckoutCooldown ||
+                        (purchasePaused && plan.price > 0) ||
+                        (TIER_WEIGHT[plan.tier] < currentWeight && currentWeight > 0 && plan.price > 0)
+                      }
+                      className={`block w-full text-center px-6 py-3 rounded-lg font-medium transition-colors ${
+                        isCheckoutCooldown
+                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : TIER_WEIGHT[plan.tier] < currentWeight && currentWeight > 0 && plan.price > 0
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200"
+                          : isCurrentPlan(plan)
+                          ? "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300"
+                          : plan.popular
+                          ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                          : "border border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {plan.price === 0 
+                        ? t('getStarted') 
+                        : (purchasePaused && plan.price > 0 ? "Temporarily Paused" :
+                           isCheckoutCooldown ? `Please wait (${checkoutCooldownSeconds}s)` :
+                            isCurrentPlan(plan) ? 'Current Plan' :
+                            TIER_WEIGHT[plan.tier] > currentWeight && currentWeight > 0 ? 'Upgrade' :
+                            TIER_WEIGHT[plan.tier] < currentWeight && currentWeight > 0 ? 'Unavailable' :
+                            t('subscribe')
+                          )
+                      }
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
