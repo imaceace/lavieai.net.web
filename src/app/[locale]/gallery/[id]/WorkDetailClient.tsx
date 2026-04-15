@@ -6,7 +6,7 @@ import { Link } from "@/routing";
 import { useToast } from "@/hooks/useToast";
 import { useUserStore } from "@/stores/userStore";
 import { ArrowLeft, Copy, Sparkles, Download, Share2, Loader2, ChevronDown } from "lucide-react";
-import { galleryApi } from "@/lib/api";
+import { galleryApi } from "@/lib/api-client";
 
 interface GalleryItem {
   id: string;
