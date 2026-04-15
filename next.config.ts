@@ -6,7 +6,7 @@ const API_URL = process.env.API_URL || "https://api.lavieai.net";
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["localhost", "192.168.50.70"],
+  allowedDevOrigins: ["localhost", "192.168.50.70","api.lavieai.net"],
   async rewrites() {
     return [
       {
