@@ -20,7 +20,7 @@
 		}
 	],
 	"r2_buckets": [
-		// Use R2 incremental cache
+		// Use R2 incremental cache 
 		// See https://opennext.js.org/cloudflare/caching
 		{
 			"binding": "NEXT_INC_CACHE_R2_BUCKET",
