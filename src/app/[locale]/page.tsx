@@ -735,14 +735,15 @@ export default function Home() {
       setLastGenerationIntent(intent);
       const completedTask = await runGenerationByIntent(intent);
       if (completedTask.result_url) {
-        if ((pendingUseCasePricingPreview?.trial?.remaining || 0) > 0) {
+        const currentPreview = pendingUseCasePricingPreview;
+        if (currentPreview && currentPreview.trial.remaining > 0) {
           const nextPreview: UseCasePricingPreview = {
-            ...pendingUseCasePricingPreview,
+            ...currentPreview,
             trial: {
-              ...pendingUseCasePricingPreview.trial,
-              eligible: pendingUseCasePricingPreview.trial.remaining - 1 > 0,
-              used: pendingUseCasePricingPreview.trial.used + 1,
-              remaining: Math.max(0, pendingUseCasePricingPreview.trial.remaining - 1),
+              ...currentPreview.trial,
+              eligible: currentPreview.trial.remaining - 1 > 0,
+              used: currentPreview.trial.used + 1,
+              remaining: Math.max(0, currentPreview.trial.remaining - 1),
             }
           };
           setUseCasePricingPreviewMap((previous) => ({ ...previous, [targetUseCase]: nextPreview }));
