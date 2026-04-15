@@ -673,27 +673,30 @@ const MIGRATED_TO_INTERACTIVE_META: Record<
 };
 
 const migratedFeatureDiscoveryCases: InteractiveI2ICase[] =
-  MIGRATED_TO_INTERACTIVE_CASE_IDS_IN_ORDER.map((id) => {
+  MIGRATED_TO_INTERACTIVE_CASE_IDS_IN_ORDER.reduce<InteractiveI2ICase[]>((acc, id) => {
     const source = FEATURE_DISCOVERY_CASES.find((item) => item.id === id);
-    if (!source) return null;
+    if (!source) return acc;
 
     const meta = MIGRATED_TO_INTERACTIVE_META[id];
 
-    return {
+    const nextCase: InteractiveI2ICase = {
       id: source.id,
       tabLabel: meta.tabLabel,
       descKey: meta.descKey,
       beforeImage: meta.beforeImage,
       afterImage: meta.afterImage,
-      beforeObjectPosition: meta.beforeObjectPosition,
-      afterObjectPosition: meta.afterObjectPosition,
-      heroObjectPosition: meta.heroObjectPosition,
-      thumbObjectPosition: meta.thumbObjectPosition,
       actionButtonTextKey: source.titleKey,
       params: source.params,
-      requiredTier: source.requiredTier,
+      ...(source.requiredTier ? { requiredTier: source.requiredTier } : {}),
+      ...(meta.beforeObjectPosition ? { beforeObjectPosition: meta.beforeObjectPosition } : {}),
+      ...(meta.afterObjectPosition ? { afterObjectPosition: meta.afterObjectPosition } : {}),
+      ...(meta.heroObjectPosition ? { heroObjectPosition: meta.heroObjectPosition } : {}),
+      ...(meta.thumbObjectPosition ? { thumbObjectPosition: meta.thumbObjectPosition } : {}),
     };
-  }).filter((item): item is InteractiveI2ICase => item !== null);
+
+    acc.push(nextCase);
+    return acc;
+  }, []);
 
 export const INTERACTIVE_I2I_CASES: InteractiveI2ICase[] = [
   ...BASE_INTERACTIVE_I2I_CASES,
