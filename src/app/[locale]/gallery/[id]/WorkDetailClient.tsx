@@ -6,6 +6,7 @@ import { Link } from "@/routing";
 import { useToast } from "@/hooks/useToast";
 import { useUserStore } from "@/stores/userStore";
 import { ArrowLeft, Copy, Sparkles, Download, Share2, Loader2, ChevronDown } from "lucide-react";
+import { galleryApi } from "@/lib/api";
 
 interface GalleryItem {
   id: string;
@@ -106,10 +107,9 @@ export function WorkDetailClient({
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/gallery/${workId}`);
-        const data = await res.json();
-        if (data.success) {
-          setItem(data.data);
+        const data = await galleryApi.getWork(workId);
+        if (data) {
+          setItem(data);
         } else {
           setError("Work not found");
         }
@@ -132,14 +132,13 @@ export function WorkDetailClient({
     const fetchRelated = async () => {
       setIsLoadingRelated(true);
       try {
-        const params = new URLSearchParams();
-        params.set('style', item.style!);
-        params.set('exclude', item.id);
-        params.set('limit', '8');
-        const res = await fetch(`/api/gallery?${params}`);
-        const data = await res.json();
-        if (data.success) {
-          setRelatedWorks(data.data || []);
+        const data = await galleryApi.getImages({
+          style: item.style!,
+          exclude: item.id,
+          limit: 8
+        });
+        if (data && data.images) {
+          setRelatedWorks(data.images);
         }
       } catch (err) {
         console.error("Failed to fetch related works:", err);

@@ -6,15 +6,9 @@ const API_URL = process.env.API_URL || "https://api.lavieai.net";
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["localhost", "192.168.50.70","api.lavieai.net"],
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${API_URL}/api/:path*`,
-      },
-    ];
-  },
+  allowedDevOrigins: ["localhost", "192.168.50.70", "api.lavieai.net"],
+  // Disable rewrites on Cloudflare Workers/OpenNext to avoid fetch loop or proxy issues
+  // We will use standard CORS fetches directly to the API_URL instead
 };
 
 export default withNextIntl(nextConfig);

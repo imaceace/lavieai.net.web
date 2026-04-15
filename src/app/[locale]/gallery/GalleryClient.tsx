@@ -133,11 +133,14 @@ export function GalleryClient({
         params.set('style', selectedStyle);
       }
 
-      const res = await fetch(`/api/gallery?${params}`);
-      const data = await res.json();
+      const res = await galleryApi.getImages({
+        style: selectedStyle === 'popular' ? undefined : (selectedStyle || undefined),
+        limit: LIMIT,
+        offset: currentOffset,
+      });
       
-      if (data.success) {
-        const newItems = data.data || [];
+      if (res && res.images) {
+        const newItems = res.images || [];
         if (reset) {
           setGalleryItems(newItems);
           setOffset(LIMIT);
@@ -145,7 +148,7 @@ export function GalleryClient({
           setGalleryItems(prev => [...prev, ...newItems]);
           setOffset(prev => prev + LIMIT);
         }
-        setHasMore(data.pagination?.hasMore ?? false);
+        setHasMore(newItems.length === LIMIT);
       }
     } catch (err) {
       console.error("Gallery fetch error:", err);
