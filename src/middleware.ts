@@ -1,7 +1,6 @@
 import createMiddleware from 'next-intl/middleware';
 import { routing } from './routing';
 
-// Next.js proxy runs on the Edge runtime (required by Cloudflare/OpenNext).
 export default createMiddleware(routing);
 
 export const config = {
