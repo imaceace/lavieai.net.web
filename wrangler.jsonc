@@ -17,6 +17,9 @@
 			// see https://opennext.js.org/cloudflare/caching
 			"binding": "WORKER_SELF_REFERENCE",
 			"service": "lavieai-net-web-worker"
+		},{
+			"binding": "API", 
+			"service": "lavieai-api"
 		}
 	],
 	"r2_buckets": [
