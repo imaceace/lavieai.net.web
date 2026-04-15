@@ -44,7 +44,7 @@ const designStyles: Style[] = [
   { id: "illustration", name: "Illustration", icon: "✍️", examplePrompt: "Digital illustration of a magical forest, whimsical style, detailed characters" },
   { id: "poster", name: "Poster", icon: "📋", examplePrompt: "Vintage travel poster design, art deco style, bold colors, retro typography" },
   { id: "ui-design", name: "UI Design", icon: "📱", examplePrompt: "Modern app UI design mockup, clean interface, mobile phone showcase" },
-  { id: "logo", name: "Logo", icon: "🔵", examplePrompt: "Minimalist logo design for tech company, geometric shapes, professional brand identity" },
+  { id: "logo", name: "Logo", icon: "🔵", examplePrompt: "A minimalist logo design for the tech company Lavie AI, featuring geometric shapes and a professional brand identity. The logo includes colorful typography." },
   { id: "cover", name: "Cover", icon: "📔", examplePrompt: "Book cover design with dramatic lighting, professional typography, genre-appropriate mood" },
   { id: "ecommerce", name: "E-commerce", icon: "🛒", examplePrompt: "E-commerce product listing image, clean white background, professional product presentation" },
   { id: "packaging", name: "Packaging", icon: "📦", examplePrompt: "Creative packaging design for luxury cosmetics, premium materials, elegant branding" },

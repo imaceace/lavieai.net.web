@@ -10,14 +10,26 @@ import {
   GenerationResult,
   InteractiveI2IShowcase,
 } from "@/components/generator";
+import { INTERACTIVE_I2I_CASES } from "@/constants/useCases";
 import { useUserStore } from "@/stores/userStore";
 import { UpgradeModal } from "@/components/auth/UpgradeModal";
 import { X, UploadCloud, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
-import { generateApi, pollTaskStatus, userApi, configApi, authApi, uploadApi } from "@/lib/api-client";
+import { generateApi, pollTaskStatus, userApi, configApi, authApi, uploadApi, getClientFingerprint, type UseCasePricingPreview } from "@/lib/api-client";
 import Script from "next/script";
 
-const RECENT_USECASE_IMAGE_KEY = "recentUseCaseImage";
+const RECENT_USECASE_IMAGE_KEY_PREFIX = "recentUseCaseImage:v2";
+const RECENT_USECASE_IMAGE_LEGACY_KEY = "recentUseCaseImage";
+const RECENT_USECASE_IMAGE_FALLBACK_TTL_SECONDS = 30 * 24 * 60 * 60;
+const USECASE_PRICING_CACHE_KEY_PREFIX = "useCasePricingPreview:v1";
+const USECASE_PRICING_CACHE_TTL_MS = 120 * 1000;
+
+type RecentUseCaseImageCache = {
+  url: string;
+  id: string;
+  expiresAt: number;
+  savedAt: number;
+};
 
 // Style icons mapping
 const styleIcons: Record<string, string> = {
@@ -109,8 +121,12 @@ export default function Home() {
   const [isUseCaseUploadModalOpen, setIsUseCaseUploadModalOpen] = useState(false);
   const [pendingUseCaseData, setPendingUseCaseData] = useState<any | null>(null);
   const [pendingUseCaseImage, setPendingUseCaseImage] = useState<{ url: string; id: string } | null>(null);
+  const [pendingUseCasePricingPreview, setPendingUseCasePricingPreview] = useState<UseCasePricingPreview | null>(null);
+  const [useCasePricingPreviewMap, setUseCasePricingPreviewMap] = useState<Record<string, UseCasePricingPreview>>({});
+  const [isLoadingPendingUseCasePricing, setIsLoadingPendingUseCasePricing] = useState(false);
   const [recentUseCaseImage, setRecentUseCaseImage] = useState<{ url: string; id: string } | null>(null);
   const [isUseCaseUploading, setIsUseCaseUploading] = useState(false);
+  const recentUseCaseStorageKeyRef = useRef<string | null>(null);
 
   // User points state
   const [userCredits, setUserCredits] = useState<number | null>(null);
@@ -161,6 +177,9 @@ export default function Home() {
   const lastPromptEditTime = useRef<number>(0);
   const lastDropdownEditTime = useRef<number>(0);
 
+  const getUseCaseCacheKey = (scopeKey: string, fastModeEnabled: boolean) =>
+    `${USECASE_PRICING_CACHE_KEY_PREFIX}:${scopeKey}:${fastModeEnabled ? "fast" : "slow"}`;
+
   // Sniff keywords from prompt to update selectors
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -208,20 +227,123 @@ export default function Home() {
   }, [user]);
 
   useEffect(() => {
-    const storedRecentImage = sessionStorage.getItem(RECENT_USECASE_IMAGE_KEY);
-    if (storedRecentImage) {
-      try {
-        const parsed = JSON.parse(storedRecentImage);
-        if (parsed?.url && parsed?.id) {
-          setRecentUseCaseImage({ url: parsed.url, id: parsed.id });
-        } else {
-          sessionStorage.removeItem(RECENT_USECASE_IMAGE_KEY);
-        }
-      } catch {
-        sessionStorage.removeItem(RECENT_USECASE_IMAGE_KEY);
-      }
-    }
+    let cancelled = false;
+    const loadRecentUseCaseImage = async () => {
+      const scopeKey = user?.id
+        ? `user:${user.id}`
+        : `guest:${await getClientFingerprint() || 'unknown'}`;
+      const storageKey = `${RECENT_USECASE_IMAGE_KEY_PREFIX}:${scopeKey}`;
+      recentUseCaseStorageKeyRef.current = storageKey;
+      const now = Math.floor(Date.now() / 1000);
 
+      const storedRecentImage = localStorage.getItem(storageKey);
+      if (storedRecentImage) {
+        try {
+          const parsed = JSON.parse(storedRecentImage) as RecentUseCaseImageCache;
+          if (parsed?.url && parsed?.id && Number(parsed.expiresAt || 0) > now) {
+            if (!cancelled) setRecentUseCaseImage({ url: parsed.url, id: parsed.id });
+          } else {
+            localStorage.removeItem(storageKey);
+          }
+        } catch {
+          localStorage.removeItem(storageKey);
+        }
+      } else {
+        // One-time migration from legacy sessionStorage
+        const legacyStored = sessionStorage.getItem(RECENT_USECASE_IMAGE_LEGACY_KEY);
+        if (legacyStored) {
+          try {
+            const parsedLegacy = JSON.parse(legacyStored);
+            if (parsedLegacy?.url && parsedLegacy?.id) {
+              const migrated: RecentUseCaseImageCache = {
+                url: parsedLegacy.url,
+                id: parsedLegacy.id,
+                savedAt: now,
+                expiresAt: now + RECENT_USECASE_IMAGE_FALLBACK_TTL_SECONDS,
+              };
+              localStorage.setItem(storageKey, JSON.stringify(migrated));
+              if (!cancelled) setRecentUseCaseImage({ url: migrated.url, id: migrated.id });
+            }
+          } catch {
+            // Ignore bad legacy payload.
+          } finally {
+            sessionStorage.removeItem(RECENT_USECASE_IMAGE_LEGACY_KEY);
+          }
+        }
+      }
+    };
+    void loadRecentUseCaseImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const preloadUseCasePricing = async () => {
+      const scopeKey = user?.id
+        ? `user:${user.id}:${(user.tier || user.subscription_type || 'free').toLowerCase()}`
+        : `guest:${await getClientFingerprint() || 'unknown'}`;
+      const cacheKey = getUseCaseCacheKey(scopeKey, fastMode);
+
+      const now = Date.now();
+      const cachedRaw = sessionStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        try {
+          const parsed = JSON.parse(cachedRaw) as { expiresAt: number; items: UseCasePricingPreview[] };
+          if (parsed.expiresAt > now && Array.isArray(parsed.items)) {
+            const mapped = parsed.items.reduce<Record<string, UseCasePricingPreview>>((acc, item) => {
+              acc[item.use_case] = item;
+              return acc;
+            }, {});
+            if (!cancelled) setUseCasePricingPreviewMap(mapped);
+            return;
+          }
+        } catch {
+          // Ignore broken cache payload.
+        }
+      }
+
+      const uniqueUseCases = new Map<string, { useCase: string; width?: number; height?: number }>();
+      for (const item of INTERACTIVE_I2I_CASES) {
+        const useCase = item.params?.useCase || item.id;
+        if (!useCase || uniqueUseCases.has(useCase)) continue;
+        uniqueUseCases.set(useCase, {
+          useCase,
+          width: item.params?.resolution?.[0] || 1024,
+          height: item.params?.resolution?.[1] || 1024,
+        });
+      }
+
+      try {
+        const batch = await generateApi.getUseCasePricingPreviewBatch({
+          fastMode,
+          items: Array.from(uniqueUseCases.values()),
+        });
+        if (cancelled) return;
+        const mapped = batch.items.reduce<Record<string, UseCasePricingPreview>>((acc, item) => {
+          acc[item.use_case] = item;
+          return acc;
+        }, {});
+        setUseCasePricingPreviewMap(mapped);
+        sessionStorage.setItem(cacheKey, JSON.stringify({
+          expiresAt: now + USECASE_PRICING_CACHE_TTL_MS,
+          items: batch.items,
+        }));
+      } catch (error) {
+        console.error("Failed to preload use-case pricing previews:", error);
+      }
+    };
+
+    void preloadUseCasePricing();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.tier, user?.subscription_type, fastMode]);
+
+  useEffect(() => {
     // Fetch generation options from API (styles, colors, etc.)
     configApi.getGenerationOptions().then(options => {
       if (options) {
@@ -445,7 +567,12 @@ export default function Home() {
       console.error("Generation error:", error);
       
       const errorCode = (error as any).code;
-      if (errorCode === 'RESOLUTION_LIMIT' || errorCode === 'UPGRADE_REQUIRED' || errorCode === 'DAILY_LIMIT_EXCEEDED') {
+      if (
+        errorCode === 'RESOLUTION_LIMIT' ||
+        errorCode === 'UPGRADE_REQUIRED' ||
+        errorCode === 'DAILY_LIMIT_EXCEEDED' ||
+        errorCode === 'INSUFFICIENT_POINTS'
+      ) {
         setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
         setUpgradeModalSubtitle(error instanceof Error ? error.message : t('generator.upgradeRequired'));
         setIsUpgradeModalOpen(true);
@@ -481,7 +608,7 @@ export default function Home() {
     }, 100);
   };
 
-  const handleSelectUseCase = (useCaseData: any) => {
+  const handleSelectUseCase = async (useCaseData: any) => {
     const params = useCaseData.params || {};
     const requiredTier = useCaseData.requiredTier || 'free';
     
@@ -504,9 +631,35 @@ export default function Home() {
     }
 
     // H3 图生图入口：先弹出选图浮窗，选图后再回填参数并自动提交
+    const targetUseCase = params.useCase || useCaseData.id || 'general';
     setPendingUseCaseData(useCaseData);
     setPendingUseCaseImage(recentUseCaseImage);
+    setPendingUseCasePricingPreview(null);
     setIsUseCaseUploadModalOpen(true);
+
+    const cachedPreview = useCasePricingPreviewMap[targetUseCase];
+    if (cachedPreview) {
+      setPendingUseCasePricingPreview(cachedPreview);
+      setIsLoadingPendingUseCasePricing(false);
+      return;
+    }
+
+    try {
+      setIsLoadingPendingUseCasePricing(true);
+      const preview = await generateApi.getUseCasePricingPreview({
+        useCase: targetUseCase,
+        width: (params.resolution || resolution)?.[0] || 1024,
+        height: (params.resolution || resolution)?.[1] || 1024,
+        fastMode,
+      });
+      setPendingUseCasePricingPreview(preview);
+      setUseCasePricingPreviewMap((previous) => ({ ...previous, [preview.use_case]: preview }));
+    } catch (error) {
+      console.error("Failed to load use-case pricing preview:", error);
+      addToast("Failed to load latest pricing, fallback value is shown.", "info");
+    } finally {
+      setIsLoadingPendingUseCasePricing(false);
+    }
   };
 
   const handleUseCaseFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -525,9 +678,17 @@ export default function Home() {
       setIsUseCaseUploading(true);
       const data = await uploadApi.uploadImage(file, targetUseCase);
       const imageData = { url: data.url, id: data.id };
+      const now = Math.floor(Date.now() / 1000);
+      const expiresAt = Number(data.expires_at || (now + RECENT_USECASE_IMAGE_FALLBACK_TTL_SECONDS));
       setPendingUseCaseImage(imageData);
       setRecentUseCaseImage(imageData);
-      sessionStorage.setItem(RECENT_USECASE_IMAGE_KEY, JSON.stringify(imageData));
+      const storageKey = recentUseCaseStorageKeyRef.current || `${RECENT_USECASE_IMAGE_KEY_PREFIX}:guest:unknown`;
+      const payload: RecentUseCaseImageCache = {
+        ...imageData,
+        savedAt: now,
+        expiresAt,
+      };
+      localStorage.setItem(storageKey, JSON.stringify(payload));
       addToast(t('generator.useCaseUploadModal.uploadedNotice'), "info");
     } catch (err: any) {
       addToast(err.message || "Upload failed", "error");
@@ -542,6 +703,12 @@ export default function Home() {
       addToast(t('generator.useCaseUploadModal.uploadFirstNotice'), "info");
       return;
     }
+    if (!isPendingUseCaseTrialEligible && userCredits !== null && userCredits < pendingUseCaseCost) {
+      setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
+      setUpgradeModalSubtitle(t('generator.notEnoughCredits', { cost: pendingUseCaseCost }));
+      setIsUpgradeModalOpen(true);
+      return;
+    }
 
     const params = pendingUseCaseData.params || {};
     const targetUseCase = params.useCase || pendingUseCaseData.id || 'general';
@@ -553,6 +720,7 @@ export default function Home() {
 
     setIsUseCaseUploadModalOpen(false);
     setPendingUseCaseData(null);
+    setPendingUseCasePricingPreview(null);
     setIsGenerating(true);
 
     try {
@@ -567,6 +735,19 @@ export default function Home() {
       setLastGenerationIntent(intent);
       const completedTask = await runGenerationByIntent(intent);
       if (completedTask.result_url) {
+        if ((pendingUseCasePricingPreview?.trial?.remaining || 0) > 0) {
+          const nextPreview: UseCasePricingPreview = {
+            ...pendingUseCasePricingPreview,
+            trial: {
+              ...pendingUseCasePricingPreview.trial,
+              eligible: pendingUseCasePricingPreview.trial.remaining - 1 > 0,
+              used: pendingUseCasePricingPreview.trial.used + 1,
+              remaining: Math.max(0, pendingUseCasePricingPreview.trial.remaining - 1),
+            }
+          };
+          setUseCasePricingPreviewMap((previous) => ({ ...previous, [targetUseCase]: nextPreview }));
+          setPendingUseCasePricingPreview(nextPreview);
+        }
         setResult({ imageUrl: completedTask.result_url });
         const userProfile = await authApi.getMe();
         if (userProfile) {
@@ -576,7 +757,12 @@ export default function Home() {
       }
     } catch (error) {
       const errorCode = (error as any)?.code;
-      if (errorCode === 'RESOLUTION_LIMIT' || errorCode === 'UPGRADE_REQUIRED' || errorCode === 'DAILY_LIMIT_EXCEEDED') {
+      if (
+        errorCode === 'RESOLUTION_LIMIT' ||
+        errorCode === 'UPGRADE_REQUIRED' ||
+        errorCode === 'DAILY_LIMIT_EXCEEDED' ||
+        errorCode === 'INSUFFICIENT_POINTS'
+      ) {
         setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
         setUpgradeModalSubtitle(error instanceof Error ? error.message : t('generator.upgradeRequired'));
         setIsUpgradeModalOpen(true);
@@ -610,7 +796,12 @@ export default function Home() {
     } catch (error) {
       console.error("Regenerate error:", error);
       const errorCode = (error as any)?.code;
-      if (errorCode === 'RESOLUTION_LIMIT' || errorCode === 'UPGRADE_REQUIRED' || errorCode === 'DAILY_LIMIT_EXCEEDED') {
+      if (
+        errorCode === 'RESOLUTION_LIMIT' ||
+        errorCode === 'UPGRADE_REQUIRED' ||
+        errorCode === 'DAILY_LIMIT_EXCEEDED' ||
+        errorCode === 'INSUFFICIENT_POINTS'
+      ) {
         setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
         setUpgradeModalSubtitle(error instanceof Error ? error.message : t('generator.upgradeRequired'));
         setIsUpgradeModalOpen(true);
@@ -643,14 +834,17 @@ export default function Home() {
         return formatUseCaseFallbackTitle(String(pendingUseCaseData.id || "use case"));
       })()
     : "";
+  const isPendingUseCaseTrialEligible = (pendingUseCasePricingPreview?.trial?.remaining || 0) > 0;
+  const pendingUseCaseTrialRemaining = pendingUseCasePricingPreview?.trial?.remaining || 0;
   const pendingUseCaseModel = getAutoModelByTier();
   const pendingUseCaseCost = pendingUseCaseData
-    ? getGenerationCost(
-        pendingUseCaseModel,
-        pendingUseCaseData?.params?.resolution || resolution,
-        pendingUseCaseModel === 'basic' ? 1 : quality
-      )
+    ? (pendingUseCasePricingPreview?.points_cost ?? getGenerationCost(
+      pendingUseCaseModel,
+      pendingUseCaseData?.params?.resolution || resolution,
+      pendingUseCaseModel === 'basic' ? 1 : quality
+    ))
     : generationCost;
+  const hasEnoughPendingUseCaseCredits = isPendingUseCaseTrialEligible || userCredits === null || userCredits >= pendingUseCaseCost;
 
   const professionalSubjects: Record<string, string[]> = {
     "photographic": [
@@ -1702,6 +1896,7 @@ export default function Home() {
                 onClick={() => {
                   setIsUseCaseUploadModalOpen(false);
                   setPendingUseCaseData(null);
+                  setPendingUseCasePricingPreview(null);
                 }}
                 className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10"
                 aria-label="Close"
@@ -1712,10 +1907,26 @@ export default function Home() {
 
             <div className="rounded-xl border p-3 mb-4" style={{ borderColor: 'var(--gen-border)' }}>
               <div className="flex items-center justify-between text-sm mt-2">
-                <span style={{ color: 'var(--gen-text-muted)' }}>{t('generator.useCaseUploadModal.cost')}</span>
-                <span className="font-semibold" style={{ color: 'var(--gen-text)' }}>
-                  {pendingUseCaseCost} {tCommon('pts')}
-                </span>
+                {isLoadingPendingUseCasePricing ? (
+                  <>
+                    <span style={{ color: 'var(--gen-text-muted)' }}>Pricing</span>
+                    <span className="font-semibold" style={{ color: 'var(--gen-text)' }}>Checking...</span>
+                  </>
+                ) : isPendingUseCaseTrialEligible ? (
+                  <>
+                    <span style={{ color: 'var(--gen-text-muted)' }}>Trial chances left</span>
+                    <span className="font-semibold" style={{ color: 'var(--gen-text)' }}>
+                      {pendingUseCaseTrialRemaining}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ color: 'var(--gen-text-muted)' }}>{t('generator.useCaseUploadModal.cost')}</span>
+                    <span className="font-semibold" style={{ color: 'var(--gen-text)' }}>
+                      {pendingUseCaseCost} {tCommon('pts')}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -1752,6 +1963,7 @@ export default function Home() {
                   onClick={() => {
                     setIsUseCaseUploadModalOpen(false);
                     setPendingUseCaseData(null);
+                    setPendingUseCasePricingPreview(null);
                   }}
                   className="flex-1 px-4 py-2.5 rounded-full font-semibold transition-all border"
                   style={{ borderColor: 'var(--gen-border)', color: 'var(--gen-text)' }}
@@ -1771,7 +1983,8 @@ export default function Home() {
                   onClick={() => {
                     setPendingUseCaseImage(null);
                     setRecentUseCaseImage(null);
-                    sessionStorage.removeItem(RECENT_USECASE_IMAGE_KEY);
+                    const storageKey = recentUseCaseStorageKeyRef.current || `${RECENT_USECASE_IMAGE_KEY_PREFIX}:guest:unknown`;
+                    localStorage.removeItem(storageKey);
                   }}
                   className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 flex items-center justify-center"
                   aria-label={t('generator.useCaseUploadModal.removeImage')}
@@ -1792,7 +2005,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleGeneratePendingUseCase}
-                    disabled={isUseCaseUploading || isGenerating}
+                    disabled={isUseCaseUploading || isGenerating || isLoadingPendingUseCasePricing || !hasEnoughPendingUseCaseCredits}
                     className="flex-1 px-4 py-2.5 rounded-full font-semibold transition-all text-white disabled:opacity-70 disabled:cursor-not-allowed"
                     style={{ background: 'linear-gradient(90deg, #111827, #374151)' }}
                   >
@@ -1803,6 +2016,7 @@ export default function Home() {
                     onClick={() => {
                       setIsUseCaseUploadModalOpen(false);
                       setPendingUseCaseData(null);
+                      setPendingUseCasePricingPreview(null);
                     }}
                     className="flex-1 px-4 py-2.5 rounded-full font-semibold transition-all border"
                     style={{ borderColor: 'var(--gen-border)', color: 'var(--gen-text)' }}

@@ -9,6 +9,7 @@ import { useUserStore } from "@/stores/userStore";
 import { authApi } from "@/lib/api-client";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.lavieai.net';
+const SUPPORTED_LOCALES = new Set(["en", "de", "es", "fr", "it"]);
 
 export function Header() {
   const t = useTranslations("nav");
@@ -54,11 +55,13 @@ export function Header() {
             name: userData.name,
             avatar: userData.avatar || "",
             subscription_type: (userData.subscription_type || 'free') as any,
+            subscription_interval: userData.subscription_interval,
             tier: (userData.tier || 'basic') as any, // Routing tier (basic/pro/max/ultra)
             credits: userData.credits,
             subscription_expire: userData.subscription_expire,
             created_at: userData.created_at,
             isWhitelisted: userData.isWhitelisted,
+            canBuyPoints: userData.canBuyPoints,
             is_admin: userData.is_admin,
           });
         } else {
@@ -74,6 +77,68 @@ export function Header() {
       setIsLoading(false);
     }
   }, [user, setUser, setIsLoading]);
+
+  useEffect(() => {
+    // IMPORTANT: This callback verifier is part of payment security.
+    // Do not remove it unless server-side PayPal return handling is redesigned.
+    // Browser query params are untrusted, so we always call backend callback verification
+    // and then refresh profile from /api/auth/me.
+    const runPayPalCallback = async () => {
+      if (typeof window === 'undefined') return;
+      const params = new URLSearchParams(window.location.search);
+      const transactionId = params.get('transaction_id');
+      const subscriptionId = params.get('subscription_id');
+      const planId = params.get('plan_id');
+      const token = params.get('token');
+      const baToken = params.get('ba_token');
+      if (!transactionId || !subscriptionId) return;
+
+      try {
+        const callbackUrl = new URL(`${API_BASE}/api/subscription/paypal/callback`);
+        callbackUrl.searchParams.set('transaction_id', transactionId);
+        callbackUrl.searchParams.set('subscription_id', subscriptionId);
+        if (planId) callbackUrl.searchParams.set('plan_id', planId);
+        if (token) callbackUrl.searchParams.set('token', token);
+        if (baToken) callbackUrl.searchParams.set('ba_token', baToken);
+        const callbackRes = await fetch(callbackUrl.toString(), { credentials: 'include' });
+        const callbackData = await callbackRes.json();
+        if (callbackRes.ok && callbackData?.success) {
+          const userData = await authApi.getMe();
+          if (userData) {
+            setUser({
+              id: userData.id,
+              email: userData.email,
+              name: userData.name,
+              avatar: userData.avatar || "",
+              subscription_type: (userData.subscription_type || 'free') as any,
+              subscription_interval: userData.subscription_interval,
+              tier: (userData.tier || 'basic') as any,
+              credits: userData.credits,
+              subscription_expire: userData.subscription_expire,
+              created_at: userData.created_at,
+              isWhitelisted: userData.isWhitelisted,
+              canBuyPoints: userData.canBuyPoints,
+              is_admin: userData.is_admin,
+            });
+          }
+          addToast('Payment confirmed. Your subscription has been activated.', 'success');
+          const firstSegment = window.location.pathname.split('/').filter(Boolean)[0] || '';
+          const localePrefix = SUPPORTED_LOCALES.has(firstSegment) ? `/${firstSegment}` : '';
+          window.location.href = `${localePrefix}/profile?tab=orders`;
+          return;
+        } else {
+          addToast(callbackData?.error?.message || 'Payment is processing. Please refresh in a moment.', 'info');
+        }
+      } catch (err) {
+        addToast('Failed to confirm payment status. Please refresh and check Profile.', 'error');
+      } finally {
+        const cleanUrl = `${window.location.pathname}`;
+        window.history.replaceState({}, '', cleanUrl);
+      }
+    };
+
+    runPayPalCallback();
+  }, [addToast, setUser]);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -144,7 +209,7 @@ export function Header() {
   };
 
   const handleLogout = async () => {
-    await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
+    await authApi.logout();
     logout();
     setIsDropdownOpen(false);
   };
@@ -161,12 +226,12 @@ export function Header() {
     }
     
     const config = {
-      basic: { label: 'Creator', from: 'from-blue-500', to: 'to-cyan-400', icon: '✨' },
-      creator: { label: 'Creator', from: 'from-blue-500', to: 'to-cyan-400', icon: '✨' }, // legacy alias
+      creator: { label: 'Creator', from: 'from-blue-500', to: 'to-cyan-400', icon: '✨' },
+      basic: { label: 'Creator', from: 'from-blue-500', to: 'to-cyan-400', icon: '✨' }, // legacy/internal alias
       plus: { label: 'Plus', from: 'from-violet-500', to: 'to-fuchsia-500', icon: '🚀' },
-      pro: { label: 'Plus', from: 'from-violet-500', to: 'to-fuchsia-500', icon: '🚀' }, // legacy alias
-      ultra: { label: 'Studio', from: 'from-amber-400', to: 'to-yellow-600', icon: '👑' },
-      studio: { label: 'Studio', from: 'from-amber-400', to: 'to-yellow-600', icon: '👑' }, // legacy alias
+      pro: { label: 'Plus', from: 'from-violet-500', to: 'to-fuchsia-500', icon: '🚀' }, // legacy/internal alias
+      studio: { label: 'Studio', from: 'from-amber-400', to: 'to-yellow-600', icon: '👑' },
+      ultra: { label: 'Studio', from: 'from-amber-400', to: 'to-yellow-600', icon: '👑' }, // legacy/internal alias
     }[subscriptionType] || { label: subscriptionType.charAt(0).toUpperCase() + subscriptionType.slice(1), from: 'from-gray-500', to: 'to-gray-400', icon: '🌟' };
 
     return (

@@ -20,6 +20,10 @@ async function getFingerprint(): Promise<string> {
   return fpPromise;
 }
 
+export async function getClientFingerprint(): Promise<string> {
+  return getFingerprint();
+}
+
 async function fileToDataUrl(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
   let binary = '';
@@ -36,13 +40,16 @@ interface User {
   email: string;
   name: string;
   avatar?: string;
-  subscription_type: 'free' | 'creator' | 'plus' | 'ultra';
+  // Membership type shown to users: Free/Creator/Plus/Studio
+  subscription_type: 'free' | 'creator' | 'plus' | 'studio';
+  subscription_interval?: 'monthly' | 'yearly' | null;
   tier: 'free' | 'basic' | 'pro' | 'max' | 'ultra';
   credits: number;
   subscription_expire?: number;
   created_at?: number;
   is_public_default?: number;
   isWhitelisted?: boolean;
+  canBuyPoints?: boolean;
   is_admin?: boolean;
 }
 
@@ -67,6 +74,21 @@ export interface GenerationParams {
   strength?: number;
 }
 
+export interface UseCasePricingPreview {
+  use_case: string;
+  task_type: string;
+  points_cost: number;
+  source: 'use_case_pricing' | 'fallback';
+  trial: {
+    eligible: boolean;
+    periodType: 'daily' | 'weekly' | string;
+    quota: number;
+    used: number;
+    remaining: number;
+    periodEnd: number | null;
+  };
+}
+
 interface SubscriptionPlan {
   id: string;
   name: string;
@@ -78,13 +100,21 @@ interface SubscriptionPlan {
 
 // Auth API
 export const authApi = {
-  googleLogin: () => {
-    window.location.href = `${API_BASE}/api/auth/google`;
+  googleLogin: async () => {
+    const fingerprint = await getFingerprint();
+    const target = new URL(`${API_BASE}/api/auth/google`);
+    if (fingerprint) {
+      target.searchParams.set('fp', fingerprint);
+    }
+    window.location.href = target.toString();
   },
 
   logout: async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error('Logout failed');
     } catch {
       // Ignore logout errors
@@ -114,12 +144,14 @@ export const authApi = {
         name: u.name,
         avatar: u.avatar || "",
         subscription_type: (u.subscription_type || 'free'),
+        subscription_interval: u.subscription_interval,
         tier: (u.tier || 'basic'),
         credits: u.credits ?? 0,
         subscription_expire: u.subscription_expire,
         created_at: u.created_at,
         is_public_default: u.is_public_default,
         isWhitelisted: u.isWhitelisted,
+        canBuyPoints: u.canBuyPoints,
         is_admin: u.is_admin,
       };
     } catch (e) {
@@ -167,6 +199,36 @@ export const adminApi = {
     });
     return res.json();
   },
+  listUsers: async (params?: {
+    email?: string;
+    emailMatch?: 'exact' | 'fuzzy';
+    name?: string;
+    ip?: string;
+    page?: number;
+    pageSize?: 10 | 20 | 50 | 100;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.email) q.set('email', params.email);
+    if (params?.emailMatch) q.set('email_match', params.emailMatch);
+    if (params?.name) q.set('name', params.name);
+    if (params?.ip) q.set('ip', params.ip);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('page_size', String(params.pageSize));
+    const res = await fetch(`${API_BASE}/api/admin/users?${q.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return res.json();
+  },
+  setUserLoginStatus: async (userId: string, disabled: boolean, reason?: string) => {
+    const res = await fetch(`${API_BASE}/api/admin/users/${encodeURIComponent(userId)}/login-status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ disabled, reason }),
+    });
+    return res.json();
+  },
   getTransactions: async (userId: string, page = 1, limit = 20) => {
     const res = await fetch(`${API_BASE}/api/admin/user/transactions?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
       method: "GET",
@@ -185,6 +247,67 @@ export const adminApi = {
     const res = await fetch(`${API_BASE}/api/admin/user/works?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
       method: "GET",
       credentials: "include",
+    });
+    return res.json();
+  },
+  getUploads: async (params?: {
+    userId?: string;
+    email?: string;
+    status?: 'active' | 'expired' | 'deleted' | 'all';
+    useCase?: string;
+    expiredOnly?: boolean;
+    page?: number;
+    pageSize?: 10 | 20 | 50 | 100;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.userId) q.set('user_id', params.userId);
+    if (params?.email) q.set('email', params.email);
+    if (params?.status) q.set('status', params.status);
+    if (params?.useCase) q.set('use_case', params.useCase);
+    if (params?.expiredOnly) q.set('expired_only', 'true');
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('page_size', String(params.pageSize));
+    const res = await fetch(`${API_BASE}/api/admin/uploads?${q.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return res.json();
+  },
+  extendUploads: async (uploadIds: string[], extendDays: number): Promise<{ success: boolean; data?: { updated: number; extend_days: number }; error?: { message?: string } }> => {
+    const res = await fetch(`${API_BASE}/api/admin/uploads/extend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ uploadIds, extendDays }),
+    });
+    return res.json();
+  },
+  expireUploads: async (uploadIds: string[]): Promise<{ success: boolean; data?: { updated: number }; error?: { message?: string } }> => {
+    const res = await fetch(`${API_BASE}/api/admin/uploads/expire`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ uploadIds }),
+    });
+    return res.json();
+  },
+  cleanupExpiredUploads: async (payload?: { limit?: number; dryRun?: boolean }): Promise<{
+    success: boolean;
+    data?: {
+      dry_run: boolean;
+      total_candidates: number;
+      deleted?: number;
+      failed?: number;
+      failed_items?: Array<{ id: string; reason: string }>;
+      candidates?: Array<{ id: string; r2_key: string; status: string; expire_at: number }>;
+    };
+    error?: { message?: string };
+  }> => {
+    const res = await fetch(`${API_BASE}/api/admin/uploads/cleanup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload || {}),
     });
     return res.json();
   },
@@ -214,6 +337,54 @@ export const adminApi = {
     } catch (e) {
       return { success: false, error: { message: (e as Error).message || 'Network error' } };
     }
+  },
+
+  getSubscriptionRefundPreview: async (email: string, params?: { channelFeeRate?: number; channelFeeMode?: 'ratio' | 'fixed'; channelFeeFixed?: number; pointUsdRate?: number; subscriptionId?: string; orderId?: string }) => {
+    const q = new URLSearchParams({ email });
+    if (typeof params?.channelFeeRate === 'number') q.set('channel_fee_rate', String(params.channelFeeRate));
+    if (params?.channelFeeMode) q.set('channel_fee_mode', params.channelFeeMode);
+    if (typeof params?.channelFeeFixed === 'number') q.set('channel_fee_fixed', String(params.channelFeeFixed));
+    if (typeof params?.pointUsdRate === 'number') q.set('point_usd_rate', String(params.pointUsdRate));
+    if (params?.subscriptionId) q.set('subscription_id', params.subscriptionId);
+    if (params?.orderId) q.set('order_id', params.orderId);
+    const res = await fetch(`${API_BASE}/api/admin/subscription/refund/preview?${q.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return res.json();
+  },
+
+  lookupSubscriptionRefundTargets: async (params: { email?: string; paypalSubscriptionId?: string; paypalTransactionId?: string }) => {
+    const q = new URLSearchParams();
+    if (params.email) q.set('email', params.email);
+    if (params.paypalSubscriptionId) q.set('paypal_subscription_id', params.paypalSubscriptionId);
+    if (params.paypalTransactionId) q.set('paypal_transaction_id', params.paypalTransactionId);
+    const res = await fetch(`${API_BASE}/api/admin/subscription/refund/lookup?${q.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return res.json();
+  },
+
+  executeSubscriptionRefund: async (payload: {
+    userId: string;
+    subscriptionId: string;
+    orderId?: string;
+    paypalTransactionId?: string;
+    finalRefundAmount: number;
+    channelFeeRate: number;
+    channelFeeMode?: 'ratio' | 'fixed';
+    channelFeeFixed?: number;
+    pointUsdRate: number;
+    reason?: string;
+  }) => {
+    const res = await fetch(`${API_BASE}/api/admin/subscription/refund/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
   },
 
   getRoutingModels: async (params?: { task_type?: string; tier?: string }) => {
@@ -539,9 +710,82 @@ export const generateApi = {
     };
   },
 
+  getUseCasePricingPreview: async (params: {
+    useCase: string;
+    taskType?: string;
+    width?: number;
+    height?: number;
+    fastMode?: boolean;
+  }): Promise<UseCasePricingPreview> => {
+    const fp = await getFingerprint();
+    const query = new URLSearchParams();
+    query.set('use_case', params.useCase);
+    if (params.taskType) query.set('task_type', params.taskType);
+    if (typeof params.width === 'number') query.set('width', String(params.width));
+    if (typeof params.height === 'number') query.set('height', String(params.height));
+    query.set('fast_mode', params.fastMode ? 'true' : 'false');
+
+    const res = await fetch(`${API_BASE}/api/generate/use-case-pricing-preview?${query.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'X-Fingerprint': fp,
+      },
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: { message: 'Failed to get pricing preview' } }));
+      throw new Error(err.error?.message || 'Failed to get pricing preview');
+    }
+
+    const raw = await res.json();
+    if (!raw.success || !raw.data) {
+      throw new Error(raw.error?.message || 'Failed to get pricing preview');
+    }
+    return raw.data as UseCasePricingPreview;
+  },
+
+  getUseCasePricingPreviewBatch: async (params: {
+    fastMode?: boolean;
+    items: Array<{ useCase: string; width?: number; height?: number; taskType?: string }>;
+  }): Promise<{ items: UseCasePricingPreview[] }> => {
+    const fp = await getFingerprint();
+    const res = await fetch(`${API_BASE}/api/generate/use-case-pricing-preview/batch`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Fingerprint': fp,
+      },
+      body: JSON.stringify({
+        fast_mode: params.fastMode ?? false,
+        items: params.items.map((item) => ({
+          use_case: item.useCase,
+          width: item.width,
+          height: item.height,
+          task_type: item.taskType,
+        })),
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: { message: 'Failed to get pricing preview batch' } }));
+      throw new Error(err.error?.message || 'Failed to get pricing preview batch');
+    }
+    const raw = await res.json();
+    if (!raw.success || !raw.data?.items) {
+      throw new Error(raw.error?.message || 'Failed to get pricing preview batch');
+    }
+    return { items: raw.data.items as UseCasePricingPreview[] };
+  },
+
   getStatus: async (taskId: string): Promise<Task> => {
+    const fingerprint = await getFingerprint();
     const res = await fetch(`${API_BASE}/api/generate/status/${taskId}`, {
       credentials: 'include',
+      headers: {
+        'X-Fingerprint': fingerprint,
+      },
     });
     if (!res.ok) throw new Error('Failed to get status');
     const payload = await res.json();
@@ -576,7 +820,7 @@ export const userApi = {
     }
   },
 
-  getOrders: async (type?: string): Promise<{ data: Array<{ id: string; type: string; points: number; amount: number; currency: string; status: string; created_at: number; paid_at: number | null }>; pagination: any }> => {
+  getOrders: async (type?: string): Promise<{ data: Array<{ id: string; type: string; points: number; amount: number; currency: string; status: string; created_at: number; paid_at: number | null; metadata?: string | null }>; pagination: any }> => {
     try {
       const params = new URLSearchParams();
       if (type) params.set('type', type);
@@ -600,6 +844,48 @@ export const userApi = {
       return data.success ? data.data : [];
     } catch {
       return [];
+    }
+  },
+
+  getMessages: async (params?: { limit?: number; offset?: number; unreadOnly?: boolean }): Promise<{
+    data: Array<{ id: string; message_type: string; title: string; content: string; metadata?: string; is_read: number; read_at?: number | null; read_ip?: string | null; read_mode?: string | null; created_at: number }>;
+    unread: number;
+    pagination: { limit: number; offset: number; total: number; hasMore: boolean };
+  }> => {
+    try {
+      const q = new URLSearchParams();
+      if (params?.limit) q.set('limit', String(params.limit));
+      if (params?.offset) q.set('offset', String(params.offset));
+      if (params?.unreadOnly) q.set('unread_only', '1');
+      const res = await fetch(`${API_BASE}/api/user/messages?${q.toString()}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return { data: [], unread: 0, pagination: { limit: params?.limit || 20, offset: params?.offset || 0, total: 0, hasMore: false } };
+      const payload = await res.json();
+      return payload.success
+        ? payload
+        : { data: [], unread: 0, pagination: { limit: params?.limit || 20, offset: params?.offset || 0, total: 0, hasMore: false } };
+    } catch {
+      return { data: [], unread: 0, pagination: { limit: params?.limit || 20, offset: params?.offset || 0, total: 0, hasMore: false } };
+    }
+  },
+
+  markMessagesRead: async (params: { ids?: string[]; readAll?: boolean }): Promise<{ updated: number }> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/user/messages/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          ids: params.ids || [],
+          read_all: params.readAll === true,
+        }),
+      });
+      if (!res.ok) return { updated: 0 };
+      const payload = await res.json();
+      return payload.success ? (payload.data || { updated: 0 }) : { updated: 0 };
+    } catch {
+      return { updated: 0 };
     }
   },
 
@@ -688,7 +974,7 @@ export const paymentApi = {
 
 // Upload API
 export const uploadApi = {
-  uploadImage: async (file: File, useCase: string = 'general'): Promise<{ url: string; id: string }> => {
+  uploadImage: async (file: File, useCase: string = 'general'): Promise<{ url: string; id: string; expires_at?: number }> => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('useCase', useCase);

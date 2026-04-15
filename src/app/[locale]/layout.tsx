@@ -15,8 +15,11 @@ export const metadata: Metadata = {
   description: "Create stunning images with Lavie AI. Free text to image, AI art creation. No login required. Start creating now with Lavie AI Image Generator!",
   keywords: ["Lavie AI", "Lavie AI Image Generator", "AI image generator", "text to image", "AI art", "free image generator"],
   icons: {
-    icon: '/icon',
-    shortcut: '/icon',
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon', type: 'image/ico' },
+    ],
+    shortcut: '/favicon.ico',
     apple: '/icon',
   },
   openGraph: {

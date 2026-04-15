@@ -6,6 +6,11 @@ export interface InteractiveI2ICase {
   descKey?: string; // Changed from titleKey to descKey
   beforeImage: string;
   afterImage: string;
+  // Optional image focus controls to avoid face/head clipping in fixed-ratio UI cards.
+  beforeObjectPosition?: string;
+  afterObjectPosition?: string;
+  heroObjectPosition?: string;
+  thumbObjectPosition?: string;
   actionButtonTextKey: string;
   params: GenerationParams;
   requiredTier?: "free" | "basic" | "pro" | "max" | "ultra";
@@ -79,6 +84,10 @@ const BASE_INTERACTIVE_I2I_CASES: InteractiveI2ICase[] = [
     descKey: "useCases.turnIntoProfessionalPhoto.title",
     beforeImage: "/images/quick-i2i/change-outfit-before.webp",
     afterImage: "/images/quick-i2i/change-outfit-after.webp",
+    beforeObjectPosition: "50% 14%",
+    afterObjectPosition: "50% 18%",
+    heroObjectPosition: "50% 16%",
+    thumbObjectPosition: "50% 16%",
     actionButtonTextKey: "useCases.turnIntoProfessionalPhoto.title",
     requiredTier: "pro",
     params: {
@@ -162,6 +171,10 @@ const BASE_INTERACTIVE_I2I_CASES: InteractiveI2ICase[] = [
     descKey: "useCases.turnIntoAnime.desc",
     beforeImage: "/images/quick-i2i/change-outfit-before.webp", 
     afterImage: "/images/quick-i2i/turn-into-anime-after.webp",
+    beforeObjectPosition: "50% 16%",
+    afterObjectPosition: "50% 18%",
+    heroObjectPosition: "50% 17%",
+    thumbObjectPosition: "50% 17%",
     actionButtonTextKey: "useCases.turnIntoAnime.action",
     requiredTier: "pro",
     params: {
@@ -587,6 +600,10 @@ const MIGRATED_TO_INTERACTIVE_META: Record<
     descKey: string;
     beforeImage: string;
     afterImage: string;
+    beforeObjectPosition?: string;
+    afterObjectPosition?: string;
+    heroObjectPosition?: string;
+    thumbObjectPosition?: string;
   }
 > = {
   ghibliStyle: {
@@ -600,24 +617,40 @@ const MIGRATED_TO_INTERACTIVE_META: Record<
     descKey: "useCases.pixarStyle.desc",
     beforeImage: "/images/quick-i2i/little_girl.webp",
     afterImage: "/images/quick-i2i/pixar-style.webp",
+    beforeObjectPosition: "50% 20%",
+    afterObjectPosition: "50% 22%",
+    heroObjectPosition: "50% 21%",
+    thumbObjectPosition: "50% 21%",
   },
   gtaStyle: {
     tabLabel: "GTA Style",
     descKey: "useCases.gtaStyle.desc",
     beforeImage: "/images/quick-i2i/little_girl.webp",
     afterImage: "/images/quick-i2i/gta-style.webp",
+    beforeObjectPosition: "50% 20%",
+    afterObjectPosition: "50% 22%",
+    heroObjectPosition: "50% 21%",
+    thumbObjectPosition: "50% 21%",
   },
   legoStyle: {
     tabLabel: "Lego Style",
     descKey: "useCases.legoStyle.desc",
     beforeImage: "/images/quick-i2i/little_girl.webp",
     afterImage: "/images/quick-i2i/lego-style.webp",
+    beforeObjectPosition: "50% 20%",
+    afterObjectPosition: "50% 22%",
+    heroObjectPosition: "50% 21%",
+    thumbObjectPosition: "50% 21%",
   },
   turnIntoCyborg: {
     tabLabel: "Turn into Cyborg",
     descKey: "useCases.turnIntoCyborg.desc",
     beforeImage: "/images/quick-i2i/little_girl.webp",
     afterImage: "/images/quick-i2i/cyberpunk.webp",
+    beforeObjectPosition: "50% 20%",
+    afterObjectPosition: "50% 22%",
+    heroObjectPosition: "50% 21%",
+    thumbObjectPosition: "50% 21%",
   },
   pixelArt: {
     tabLabel: "Pixel Art",
@@ -652,6 +685,10 @@ const migratedFeatureDiscoveryCases: InteractiveI2ICase[] =
       descKey: meta.descKey,
       beforeImage: meta.beforeImage,
       afterImage: meta.afterImage,
+      beforeObjectPosition: meta.beforeObjectPosition,
+      afterObjectPosition: meta.afterObjectPosition,
+      heroObjectPosition: meta.heroObjectPosition,
+      thumbObjectPosition: meta.thumbObjectPosition,
       actionButtonTextKey: source.titleKey,
       params: source.params,
       requiredTier: source.requiredTier,

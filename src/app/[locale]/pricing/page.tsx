@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, X, Zap, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useUserStore } from "@/stores/userStore";
 import { whitelistApi } from "@/lib/api-client";
+import { useToast } from "@/hooks/useToast";
 
 const plans = [
   {
@@ -28,7 +29,7 @@ const plans = [
   },
   {
     name: "Creator",
-    tier: "basic",
+    tier: "creator",
     price: 19.9,
     yearlyPrice: 15.9,
     pointsDesc: "1,200 credits monthly",
@@ -72,7 +73,7 @@ const plans = [
   },
   {
     name: "Studio",
-    tier: "ultra",
+    tier: "studio",
     price: 99.9,
     yearlyPrice: 79.9,
     pointsDesc: "6,000 credits monthly",
@@ -95,17 +96,15 @@ const plans = [
 
 const TIER_WEIGHT: Record<string, number> = {
   free: 0,
-  basic: 1,
+  creator: 1,
+  studio: 4,
   plus: 2,
-  pro: 2, // legacy alias
-  max: 3,
-  ultra: 4,
 };
 
-const pointPackages = [
-  { points: 500, price: 9.9, perPoint: 0.0198 },
-  { points: 1000, price: 18.9, perPoint: 0.0189, popular: true },
-  { points: 3000, price: 49.9, perPoint: 0.0166 },
+const defaultPointPackages = [
+  { id: "500", points: 500, price: 9.9, perPoint: 0.0198 },
+  { id: "1000", points: 1000, price: 18.9, perPoint: 0.0189, popular: true },
+  { id: "3000", points: 3000, price: 49.9, perPoint: 0.0166 },
 ];
 
 export default function PricingPage() {
@@ -113,17 +112,54 @@ export default function PricingPage() {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<typeof plans[0] | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [checkoutCooldownUntil, setCheckoutCooldownUntil] = useState(0);
+  const [checkoutNow, setCheckoutNow] = useState(Date.now());
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [waitlistStatus, setWaitlistStatus] = useState<"idle" | "success" | "error">("idle");
   const [waitlistMsg, setWaitlistMsg] = useState("");
   
   const t = useTranslations("pricing");
+  const { addToast } = useToast();
   const { isLoggedIn, openLoginModal, user } = useUserStore();
   const isWhitelisted = user?.isWhitelisted;
+  const canBuyPoints = user?.canBuyPoints;
   
+  const pointPackages = canBuyPoints 
+    ? [{ points: 1, price: 0.02, perPoint: 0.02, id: "1" }, ...defaultPointPackages]
+    : defaultPointPackages;
+
   const currentTier = (user?.subscription_type || 'free').toLowerCase();
   const currentWeight = TIER_WEIGHT[currentTier] ?? 0;
+  const purchasePaused = Boolean(user?.purchase_paused);
+  const purchasePausedUntil = user?.purchase_paused_until || null;
+  const targetInterval: "monthly" | "yearly" = isYearly ? "yearly" : "monthly";
+  const currentInterval: "monthly" | "yearly" = (user?.subscription_interval === "yearly" ? "yearly" : "monthly");
+  const isSameTierCycleSwitchPlan = (plan: typeof plans[0]) =>
+    (TIER_WEIGHT[plan.tier] ?? 0) === currentWeight &&
+    currentWeight > 0 &&
+    targetInterval !== currentInterval;
+  const checkoutCooldownSeconds = Math.max(0, Math.ceil((checkoutCooldownUntil - checkoutNow) / 1000));
+  const isCheckoutCooldown = checkoutCooldownUntil > checkoutNow;
+
+  useEffect(() => {
+    if (!isCheckoutCooldown) return;
+    const timer = setInterval(() => setCheckoutNow(Date.now()), 250);
+    return () => clearInterval(timer);
+  }, [isCheckoutCooldown]);
+
+  const startCheckoutCooldown = () => {
+    const now = Date.now();
+    setCheckoutNow(now);
+    setCheckoutCooldownUntil(now + 15000);
+  };
+
+  const isCurrentPlan = (plan: typeof plans[0]) => {
+    if (TIER_WEIGHT[plan.tier] !== currentWeight || currentWeight === 0) return false;
+    const userInterval = user?.subscription_interval;
+    if (!userInterval) return true; // Fallback
+    return (userInterval === 'yearly') === isYearly;
+  };
 
   const handleWaitlistSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,9 +190,30 @@ export default function PricingPage() {
     return isYearly ? plan.yearlyPrice : plan.price;
   };
 
-  const handlePlanClick = (plan: typeof plans[0]) => {
+  const createSubscriptionCheckout = async (planTier: "creator" | "plus" | "studio") => {
+    const checkoutRes = await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/subscription/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        plan: planTier,
+        type: isYearly ? 'yearly' : 'monthly',
+      }),
+    });
+    const checkoutData = await checkoutRes.json();
+    if (!checkoutRes.ok || !checkoutData?.success || !checkoutData?.data?.checkoutUrl) {
+      throw new Error(checkoutData?.error?.message || 'Failed to create checkout');
+    }
+    return checkoutData.data.checkoutUrl as string;
+  };
+
+  const handlePlanClick = async (plan: typeof plans[0]) => {
     if (!isLoggedIn) {
       openLoginModal();
+      return;
+    }
+    if (purchasePaused && plan.price > 0) {
+      addToast("For account safety, purchases are temporarily paused on this account.", "info");
       return;
     }
     
@@ -167,6 +224,12 @@ export default function PricingPage() {
     const planWeight = TIER_WEIGHT[plan.tier] ?? 0;
     
     if (planWeight === currentWeight) {
+      // Same tier, different billing period switch (e.g. plus monthly -> plus yearly)
+      if (!isCurrentPlan(plan) && currentWeight > 0) {
+        setSelectedPlan(plan);
+        setIsUpgradeModalOpen(true);
+        return;
+      }
       window.location.href = "/profile"; // Manage current plan
       return;
     }
@@ -180,21 +243,42 @@ export default function PricingPage() {
     
     if (planWeight < currentWeight && planWeight > 0) {
       // Downgrades are currently not allowed directly via UI to prevent abuse
-      alert("Direct downgrades are currently not supported. Please contact support@lavieai.net to request a downgrade.");
+      addToast("Direct downgrades are currently not supported. Please contact support@lavieai.net to request a downgrade.", "info");
       return;
     }
     
     // Normal subscribe (free -> paid)
-    // TODO: Implement checkout flow
-    window.location.href = "/";
+    if (isCheckoutCooldown) {
+      addToast(`Please wait ${checkoutCooldownSeconds}s before trying again.`, "info");
+      return;
+    }
+    try {
+      startCheckoutCooldown();
+      const checkoutUrl = await createSubscriptionCheckout(plan.tier as "creator" | "plus" | "studio");
+      addToast('Redirecting to checkout...', 'success');
+      window.location.href = checkoutUrl;
+    } catch (e) {
+      addToast('Failed to create checkout. Please try again.', 'error');
+    }
   };
 
   const confirmUpgrade = async () => {
     if (!selectedPlan || !user) return;
+    if (purchasePaused) {
+      addToast("For account safety, purchases are temporarily paused on this account.", "info");
+      return;
+    }
+    if (isCheckoutCooldown) {
+      addToast(`Please wait ${checkoutCooldownSeconds}s before trying again.`, "info");
+      return;
+    }
     setIsProcessing(true);
     
     try {
-      const consentText = `I agree to upgrade to ${selectedPlan.name}. I understand that my current subscription will be canceled and a new billing cycle starts today. The remaining value of my old subscription will be converted into Bonus Credits instead of a cash refund. Bonus credits have a lower consumption priority and expire in 30 days. I acknowledge the 24-hour grace period policy.`;
+      const isSameTierCycleSwitch = isSameTierCycleSwitchPlan(selectedPlan);
+      const consentText = isSameTierCycleSwitch
+        ? `I agree to switch my billing cycle from ${selectedPlan.name} (${currentInterval}) to ${selectedPlan.name} (${targetInterval}). I understand this switch is effective today, and my previous subscription will be settled based on remaining refundable credits under current refund policy. Refund arrival depends on payment channel processing time (typically 3-7 business days). I acknowledge the 24-hour priority review policy.`
+        : `I agree to upgrade to ${selectedPlan.name}. I understand my current subscription will be replaced by the new plan effective today, and no extra reward/bonus credits are issued outside normal subscription credit allocation. Refund arrival depends on payment channel processing time (typically 3-7 business days). I acknowledge the 24-hour priority review policy.`;
       
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/subscription/upgrade-consent', {
         method: 'POST',
@@ -209,12 +293,13 @@ export default function PricingPage() {
       
       if (!res.ok) throw new Error('Failed to record consent');
       
-      // Proceed to checkout
-      // TODO: Redirect to PayPal checkout with the new plan
-      alert('Consent recorded! Redirecting to checkout...');
+      startCheckoutCooldown();
+      const checkoutUrl = await createSubscriptionCheckout(selectedPlan.tier as "creator" | "plus" | "studio");
+      addToast('Consent recorded! Redirecting to checkout...', 'success');
       setIsUpgradeModalOpen(false);
+      window.location.href = checkoutUrl;
     } catch (e) {
-      alert('Something went wrong. Please try again.');
+      addToast('Something went wrong. Please try again.', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -319,14 +404,14 @@ export default function PricingPage() {
               <div
                   key={plan.name}
                   className={`bg-white rounded-2xl shadow-sm overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
-                    TIER_WEIGHT[plan.tier] === currentWeight && currentWeight > 0
+                    isCurrentPlan(plan)
                       ? "ring-2 ring-green-500 relative hover:ring-green-400"
                       : plan.popular
                       ? "ring-2 ring-indigo-600 relative hover:ring-indigo-500"
                       : "hover:ring-1 hover:ring-gray-300"
                   }`}
                 >
-                {TIER_WEIGHT[plan.tier] === currentWeight && currentWeight > 0 ? (
+                {isCurrentPlan(plan) ? (
                   <div className="bg-green-500 text-white text-center py-2 text-sm font-medium">
                     Current Plan
                   </div>
@@ -368,15 +453,19 @@ export default function PricingPage() {
                   <button
                     onClick={() => handlePlanClick(plan)}
                     disabled={
+                      isCheckoutCooldown ||
+                      (purchasePaused && plan.price > 0) ||
                       (isLoggedIn && !isWhitelisted && plan.price > 0) || 
                       (TIER_WEIGHT[plan.tier] < currentWeight && currentWeight > 0 && plan.price > 0)
                     }
                     className={`block w-full text-center px-6 py-3 rounded-lg font-medium transition-colors ${
-                      isLoggedIn && !isWhitelisted && plan.price > 0
+                      isCheckoutCooldown
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : isLoggedIn && !isWhitelisted && plan.price > 0
                         ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                         : TIER_WEIGHT[plan.tier] < currentWeight && currentWeight > 0 && plan.price > 0
                         ? "bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-200"
-                        : TIER_WEIGHT[plan.tier] === currentWeight && currentWeight > 0
+                        : isCurrentPlan(plan)
                         ? "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300"
                         : plan.popular
                         ? "bg-indigo-600 text-white hover:bg-indigo-700"
@@ -385,8 +474,10 @@ export default function PricingPage() {
                   >
                     {plan.price === 0 
                       ? t('getStarted') 
-                      : (isLoggedIn && !isWhitelisted ? 'Internal Testing' : 
-                          TIER_WEIGHT[plan.tier] === currentWeight && currentWeight > 0 ? 'Current Plan' :
+                      : (purchasePaused && plan.price > 0 ? "Temporarily Paused" :
+                         isCheckoutCooldown ? `Please wait (${checkoutCooldownSeconds}s)` :
+                         isLoggedIn && !isWhitelisted ? 'Internal Testing' : 
+                          isCurrentPlan(plan) ? 'Current Plan' :
                           TIER_WEIGHT[plan.tier] > currentWeight && currentWeight > 0 ? 'Upgrade' :
                           TIER_WEIGHT[plan.tier] < currentWeight && currentWeight > 0 ? 'Unavailable' :
                           t('subscribe')
@@ -401,63 +492,65 @@ export default function PricingPage() {
       </section>
 
       {/* Buy Points */}
-      <section className="py-12 px-4 bg-white">
-        <div className="container mx-auto max-w-4xl">
-          <h2 className="text-2xl font-bold text-center mb-4">{t('buyPoints')}</h2>
-          <p className="text-gray-600 text-center mb-8">
-            {t('buyPointsDesc')}
-          </p>
+      {canBuyPoints && (
+        <section className="py-12 px-4 bg-white">
+          <div className="container mx-auto max-w-4xl">
+            <h2 className="text-2xl font-bold text-center mb-4">{t('buyPoints')}</h2>
+            <p className="text-gray-600 text-center mb-8">
+              {t('buyPointsDesc')}
+            </p>
 
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
-            {pointPackages.map((pkg) => (
-              <div
-                key={pkg.points}
-                className={`bg-gray-50 rounded-2xl p-6 text-center ${
-                  pkg.popular ? "ring-2 ring-indigo-600" : ""
-                }`}
-              >
-                {pkg.popular && (
-                  <span className="inline-block px-3 py-1 text-xs font-medium text-indigo-600 bg-indigo-100 rounded-full mb-2">
-                    {t('bestValue')}
-                  </span>
-                )}
-                <div className="text-4xl font-bold mb-2">{pkg.points}</div>
-                <div className="text-2xl font-bold text-indigo-600 mb-2">${pkg.price}</div>
-                <p className="text-sm text-gray-500 mb-4">
-                  {t('perPoint', { price: pkg.perPoint.toFixed(3) })}
-                </p>
-                <button 
-                  onClick={() => {
-                    if (!isLoggedIn) {
-                      openLoginModal();
-                    } else if (!isWhitelisted) {
-                      // Do nothing, disabled
-                    } else {
-                      // TODO: Implement points purchase flow
-                    }
-                  }}
-                  disabled={isLoggedIn && !isWhitelisted}
-                  className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                    isLoggedIn && !isWhitelisted
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50"
+            <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+              {pointPackages.map((pkg) => (
+                <div
+                  key={pkg.id}
+                  className={`bg-gray-50 rounded-2xl p-6 text-center ${
+                    pkg.popular ? "ring-2 ring-indigo-600" : ""
                   }`}
                 >
-                  {isLoggedIn && !isWhitelisted ? 'Internal Testing' : t('buyBtn', { points: pkg.points })}
-                </button>
+                  {pkg.popular && (
+                    <span className="inline-block px-3 py-1 text-xs font-medium text-indigo-600 bg-indigo-100 rounded-full mb-2">
+                      {t('bestValue')}
+                    </span>
+                  )}
+                  <div className="text-4xl font-bold mb-2">{pkg.points}</div>
+                  <div className="text-2xl font-bold text-indigo-600 mb-2">${pkg.price}</div>
+                  <p className="text-sm text-gray-500 mb-4">
+                    {t('perPoint', { price: pkg.perPoint.toFixed(3) })}
+                  </p>
+                  <button 
+                    onClick={() => {
+                      if (!isLoggedIn) {
+                        openLoginModal();
+                      } else if (!isWhitelisted) {
+                        // Do nothing, disabled
+                      } else {
+                        // TODO: Implement points purchase flow
+                      }
+                    }}
+                    disabled={isLoggedIn && !isWhitelisted}
+                    className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                      isLoggedIn && !isWhitelisted
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50"
+                    }`}
+                  >
+                    {isLoggedIn && !isWhitelisted ? 'Internal Testing' : t('buyBtn', { points: pkg.points })}
+                  </button>
+                </div>
+              ))}
+            </div>
+            
+            <div className="bg-blue-50 text-blue-800 text-sm p-4 rounded-lg flex items-start gap-3">
+              <div className="mt-0.5">ℹ️</div>
+              <div>
+                <p className="font-medium mb-1">About Credit Packages</p>
+                <p>Credit packages add non-expiring credits to your account. <strong>Note:</strong> They do not unlock premium features like Private Generations, Commercial Licenses, or access to Ultra models. An active Subscription is required for these features.</p>
               </div>
-            ))}
-          </div>
-          
-          <div className="bg-blue-50 text-blue-800 text-sm p-4 rounded-lg flex items-start gap-3">
-            <div className="mt-0.5">ℹ️</div>
-            <div>
-              <p className="font-medium mb-1">About Credit Packages</p>
-              <p>Credit packages add non-expiring credits to your account. <strong>Note:</strong> They do not unlock premium features like Private Generations, Commercial Licenses, or access to Ultra models. An active Subscription is required for these features.</p>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* FAQ */}
       <section className="py-12 px-4">
@@ -521,17 +614,28 @@ export default function PricingPage() {
                 <ul className="list-disc pl-5 text-amber-800 text-sm space-y-2 marker:text-amber-400">
                   <li>Your new billing cycle will start <strong>immediately today</strong>.</li>
                   <li>Your old subscription will be canceled automatically.</li>
-                  <li><strong className="text-amber-900">We do not issue cash refunds</strong> for the remaining time of your old plan.</li>
-                  <li>
-                    Instead, the remaining value of your old plan will be converted into <strong>Bonus Credits</strong> and added to your account. 
-                    <em> (Note: Bonus credits have a lower consumption priority and will expire after 30 days to prevent abuse.)</em>
-                  </li>
+                  <li>Your previous subscription will be settled automatically based on remaining refundable credits under our current refund policy.</li>
+                  <li>Credit allocation and any related refund settlement follow our current subscription policy.</li>
+                  <li>Refund arrival depends on your payment channel processing time and is typically completed within 3-7 business days.</li>
+                  {isSameTierCycleSwitchPlan(selectedPlan) && (
+                    <li>For same-tier billing-cycle switches, the new subscription is effective today and the previous one is settled based on remaining refundable credits.</li>
+                  )}
                 </ul>
               </div>
+
+              {purchasePaused && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-sm text-red-800">
+                  <p className="font-medium mb-1">Purchases Temporarily Paused</p>
+                  <p>
+                    For account safety, purchases are temporarily paused on this account.
+                    {purchasePausedUntil ? ` You can try again after ${new Date(purchasePausedUntil * 1000).toLocaleString()}.` : " Please contact support for review."}
+                  </p>
+                </div>
+              )}
               
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-sm text-blue-800">
-                <p className="font-medium mb-1">💡 24-Hour Grace Period</p>
-                <p className="text-blue-700 opacity-90">Upgraded by mistake? Contact <a href="mailto:support@lavieai.net" className="underline font-medium hover:text-blue-900">support@lavieai.net</a> within 24 hours to revert this change.</p>
+                <p className="font-medium mb-1">24-Hour Priority Review</p>
+                <p className="text-blue-700 opacity-90">Upgraded by mistake? Contact <a href="mailto:support@lavieai.net" className="underline font-medium hover:text-blue-900">support@lavieai.net</a> within 24 hours for priority review. Refund arrival time depends on your payment channel (typically 3-7 business days).</p>
               </div>
 
               <p className="text-sm text-gray-500 mb-6 text-center">
@@ -547,11 +651,13 @@ export default function PricingPage() {
                 </button>
                 <button
                   onClick={confirmUpgrade}
-                  disabled={isProcessing}
+                  disabled={isProcessing || isCheckoutCooldown}
                   className="flex-1 py-3 px-4 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200 disabled:opacity-50 flex justify-center items-center"
                 >
                   {isProcessing ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  ) : isCheckoutCooldown ? (
+                    `Please wait (${checkoutCooldownSeconds}s)`
                   ) : (
                     "Confirm Upgrade"
                   )}

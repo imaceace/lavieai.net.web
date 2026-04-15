@@ -25,6 +25,17 @@ export default function TermsOfServicePage() {
 
           <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">{t('content.sections.2.title')}</h2>
           <p className="mb-8">{t('content.sections.2.text')}</p>
+
+          <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">4. Subscription Switch, Refund Settlement & Timing</h2>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-8 text-sm">
+            <ul className="list-disc pl-5 space-y-2">
+              <li>When you switch paid subscription plans (tier upgrade or billing-cycle switch), the new subscription takes effect upon successful payment confirmation.</li>
+              <li>Your previous subscription may be canceled and settled automatically according to remaining refundable credits under our current refund policy.</li>
+              <li>Refund settlement is processed through payment channels and typically arrives within 3-7 business days, subject to provider and issuer processing.</li>
+              <li>If automatic settlement cannot be completed immediately due to payment-channel issues, we may retry processing and/or route the case for manual review.</li>
+              <li>For mistaken upgrades, contacting support within 24 hours enables priority review, but does not guarantee instant channel settlement.</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

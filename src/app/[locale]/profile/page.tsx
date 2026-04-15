@@ -8,8 +8,8 @@ import { authApi, userApi } from "@/lib/api-client";
 import { useToast } from "@/hooks/useToast";
 import { UpgradeModal } from "@/components/auth/UpgradeModal";
 
-type Tab = "overview" | "orders" | "history" | "admin";
-type AdminPanelTab = "whitelist" | "routing" | "pricing" | "cache" | "users";
+type Tab = "overview" | "orders" | "history" | "messages" | "admin";
+type AdminPanelTab = "whitelist" | "routing" | "pricing" | "cache" | "refunds" | "users";
 
 interface Order {
   id: string;
@@ -20,6 +20,7 @@ interface Order {
   status: string;
   created_at: number;
   paid_at: number | null;
+  metadata?: string | null;
 }
 
 interface Subscription {
@@ -31,6 +32,19 @@ interface Subscription {
   status: string;
   started_at: number;
   expire_at: number;
+  created_at: number;
+}
+
+interface UserMessage {
+  id: string;
+  message_type: string;
+  title: string;
+  content: string;
+  metadata?: string;
+  is_read: number;
+  read_at?: number | null;
+  read_ip?: string | null;
+  read_mode?: string | null;
   created_at: number;
 }
 
@@ -111,8 +125,30 @@ interface CacheGroupMap {
   [group: string]: string[];
 }
 
+interface AdminUserListItem {
+  id: string;
+  email: string;
+  name: string;
+  subscription_type: string;
+  subscription_display: string;
+  points: number;
+  created_at: number;
+  last_ip?: string | null;
+  country?: string | null;
+  preferred_language?: string | null;
+  fingerprint?: string | null;
+  device_type?: string | null;
+  is_admin: number;
+  login_disabled: number;
+  login_disabled_reason?: string | null;
+  login_disabled_at?: number | null;
+}
+
 const PLAN_LABELS: Record<string, string> = {
   free: "Free",
+  creator: "Creator",
+  studio: "Studio",
+  // Legacy/internal aliases kept for backward compatibility
   basic: "Creator",
   plus: "Plus",
   pro: "Plus", // legacy alias
@@ -162,6 +198,60 @@ function formatCurrency(amount: number, currency: string): string {
   }).format(amount);
 }
 
+function formatLanguageTag(tag?: string | null): string {
+  const raw = String(tag || "").trim();
+  if (!raw) return "-";
+  const normalized = raw.replace("_", "-");
+  const [languageCodeRaw, regionCodeRaw] = normalized.split("-");
+  const languageCode = (languageCodeRaw || "").toLowerCase();
+  const regionCode = (regionCodeRaw || "").toUpperCase();
+  if (!languageCode) return normalized;
+
+  try {
+    const languageName = new Intl.DisplayNames(["en"], { type: "language" }).of(languageCode) || languageCode;
+    if (!regionCode) return languageName;
+    const regionName = new Intl.DisplayNames(["en"], { type: "region" }).of(regionCode) || regionCode;
+    return `${languageName} (${regionName})`;
+  } catch {
+    return normalized;
+  }
+}
+
+function roundMoney(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 100) / 100;
+}
+
+function roundRate(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 10000) / 10000;
+}
+
+const SUBSCRIPTION_PLAN_CREDITS: Record<string, number> = {
+  creator: 1200,
+  plus: 3000,
+  studio: 6000,
+  basic: 1200, // legacy alias
+  ultra: 6000, // legacy alias
+};
+
+function getOrderCreditsDisplay(order: Order): string {
+  if (order.type === "points") {
+    return order.points > 0 ? `+${order.points}` : "-";
+  }
+  if (order.type === "subscription") {
+    try {
+      const meta = order.metadata ? JSON.parse(order.metadata) : {};
+      const plan = String(meta?.plan || "").toLowerCase();
+      const credits = SUBSCRIPTION_PLAN_CREDITS[plan] || 0;
+      return credits > 0 ? `+${credits}` : "-";
+    } catch {
+      return "-";
+    }
+  }
+  return order.points > 0 ? `+${order.points}` : "-";
+}
+
 export default function ProfilePage() {
   const { addToast } = useToast();
   const { user, isLoggedIn: storeIsLoggedIn, isLoading: storeLoading, setUser } = useUserStore();
@@ -169,6 +259,9 @@ export default function ProfilePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [works, setWorks] = useState<Work[]>([]);
+  const [messages, setMessages] = useState<UserMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messagesUnread, setMessagesUnread] = useState(0);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [loadingSubs, setLoadingSubs] = useState(false);
   const [loadingWorks, setLoadingWorks] = useState(false);
@@ -183,6 +276,16 @@ export default function ProfilePage() {
   const [adminSearchEmail, setAdminSearchEmail] = useState("");
   const [adminSearchLoading, setAdminSearchLoading] = useState(false);
   const [adminSearchResult, setAdminSearchResult] = useState<any>(null);
+  const [adminListEmail, setAdminListEmail] = useState("");
+  const [adminListEmailMatch, setAdminListEmailMatch] = useState<"exact" | "fuzzy">("fuzzy");
+  const [adminListName, setAdminListName] = useState("");
+  const [adminListIp, setAdminListIp] = useState("");
+  const [adminUserList, setAdminUserList] = useState<AdminUserListItem[]>([]);
+  const [adminUserListLoading, setAdminUserListLoading] = useState(false);
+  const [adminUserListPage, setAdminUserListPage] = useState(1);
+  const [adminUserListPageSize, setAdminUserListPageSize] = useState<10 | 20 | 50 | 100>(10);
+  const [adminUserListTotal, setAdminUserListTotal] = useState(0);
+  const [updatingLoginStatusUserId, setUpdatingLoginStatusUserId] = useState<string | null>(null);
 
   // Admin details tabs and pagination
   const [activeAdminTab, setActiveAdminTab] = useState<"transactions" | "orders" | "works">("transactions");
@@ -228,6 +331,23 @@ export default function ProfilePage() {
   const [grantDays, setGrantDays] = useState(30);
   const [granting, setGranting] = useState(false);
   const [pendingGrant, setPendingGrant] = useState<{ amount: number; reason: string; days: number } | null>(null);
+  const [refundChannelFeeRate, setRefundChannelFeeRate] = useState(0.03);
+  const [refundChannelFeeMode, setRefundChannelFeeMode] = useState<"ratio" | "fixed">("ratio");
+  const [refundChannelFeeFixed, setRefundChannelFeeFixed] = useState(0);
+  const [refundPointUsdRate, setRefundPointUsdRate] = useState(0.018);
+  const [refundReason, setRefundReason] = useState("User requested cancellation/refund");
+  const [refundPaypalTxnId, setRefundPaypalTxnId] = useState("");
+  const [refundPreview, setRefundPreview] = useState<any>(null);
+  const [finalRefundAmount, setFinalRefundAmount] = useState(0);
+  const [loadingRefundPreview, setLoadingRefundPreview] = useState(false);
+  const [refunding, setRefunding] = useState(false);
+  const [refundLookupEmail, setRefundLookupEmail] = useState("");
+  const [refundLookupSubId, setRefundLookupSubId] = useState("");
+  const [refundLookupTxnId, setRefundLookupTxnId] = useState("");
+  const [refundLookupLoading, setRefundLookupLoading] = useState(false);
+  const [refundLookupRows, setRefundLookupRows] = useState<any[]>([]);
+  const [selectedRefundSubscriptionId, setSelectedRefundSubscriptionId] = useState("");
+  const [selectedRefundOrderId, setSelectedRefundOrderId] = useState("");
 
   const isMember = user?.subscription_type && user.subscription_type !== 'free';
 
@@ -238,6 +358,14 @@ export default function ProfilePage() {
       setPageLoading(false);
     }, 500);
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "overview" || tab === "orders" || tab === "history" || tab === "messages" || tab === "admin") {
+      setActiveTab(tab);
+    }
   }, []);
 
   useEffect(() => {
@@ -274,6 +402,16 @@ export default function ProfilePage() {
         .finally(() => setLoadingWorks(false));
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "messages" && messages.length === 0) {
+      setLoadingMessages(true);
+      userApi.getMessages({ limit: 50, offset: 0 }).then((res) => {
+        setMessages(res.data || []);
+        setMessagesUnread(res.unread || 0);
+      }).finally(() => setLoadingMessages(false));
+    }
+  }, [activeTab, messages.length]);
 
   useEffect(() => {
     if (activeTab === "admin" && user?.is_admin && whitelist.length === 0) {
@@ -337,6 +475,31 @@ export default function ProfilePage() {
     }
   };
 
+  const fetchAdminUserList = async (page: number = adminUserListPage, pageSize: 10 | 20 | 50 | 100 = adminUserListPageSize) => {
+    setAdminUserListLoading(true);
+    try {
+      const { adminApi } = await import("@/lib/api-client");
+      const res = await adminApi.listUsers({
+        email: adminListEmail || undefined,
+        emailMatch: adminListEmailMatch,
+        name: adminListName || undefined,
+        ip: adminListIp || undefined,
+        page,
+        pageSize,
+      });
+      if (res?.success) {
+        setAdminUserList(res.data || []);
+        setAdminUserListTotal(Number(res.pagination?.total || 0));
+      } else {
+        addToast(res?.error?.message || "Failed to load user list", "error");
+      }
+    } catch {
+      addToast("Failed to load user list", "error");
+    } finally {
+      setAdminUserListLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === "admin" && user?.is_admin) {
       const fetchRoutingData = async () => {
@@ -358,6 +521,11 @@ export default function ProfilePage() {
       fetchRoutingData();
     }
   }, [activeTab, user?.is_admin]);
+
+  useEffect(() => {
+    if (activeTab !== "admin" || activeAdminPanel !== "users" || !user?.is_admin) return;
+    fetchAdminUserList(adminUserListPage, adminUserListPageSize);
+  }, [activeTab, activeAdminPanel, user?.is_admin, adminUserListPage, adminUserListPageSize]);
 
   const openEditPricing = (policy: PricingPolicy) => {
     setEditingPricingId(policy.id);
@@ -535,31 +703,78 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAdminSearch = async (e: React.FormEvent) => {
+  const handleAdminUserListSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminSearchEmail) return;
+    setAdminUserListPage(1);
+    await fetchAdminUserList(1, adminUserListPageSize);
+  };
+
+  const openAdminUserDetail = async (email: string) => {
+    setAdminSearchEmail(email);
     setAdminSearchLoading(true);
     setAdminSearchResult(null);
     setAdminTransactions([]);
     setAdminOrders([]);
     setAdminWorks([]);
+    setRefundPreview(null);
     try {
       const { adminApi } = await import("@/lib/api-client");
-      const data = await adminApi.getUserInfo(adminSearchEmail);
+      const data = await adminApi.getUserInfo(email);
       if (data.success) {
         setAdminSearchResult(data.data);
         setActiveAdminTab("transactions");
         setAdminPage(1);
       } else {
         addToast(data.error?.message || "Search failed", "error");
-        setAdminSearchResult(null);
       }
-    } catch (e: any) {
+    } catch {
       addToast("Search failed", "error");
-      setAdminSearchResult(null);
     } finally {
       setAdminSearchLoading(false);
     }
+  };
+
+  const handleSetUserLoginStatus = async (target: AdminUserListItem, disabled: boolean) => {
+    if (!disabled && !window.confirm(`Enable login for ${target.email}?`)) return;
+    let reason = "";
+    if (disabled) {
+      reason = (window.prompt(`Disable login for ${target.email}. Please enter reason:`, target.login_disabled_reason || "") || "").trim();
+    }
+    setUpdatingLoginStatusUserId(target.id);
+    try {
+      const { adminApi } = await import("@/lib/api-client");
+      const res = await adminApi.setUserLoginStatus(target.id, disabled, reason || undefined);
+      if (!res?.success) {
+        addToast(res?.error?.message || "Failed to update login status", "error");
+        return;
+      }
+      addToast(disabled ? "User login disabled" : "User login enabled", "success");
+      setAdminUserList((prev) =>
+        prev.map((u) =>
+          u.id === target.id
+            ? {
+                ...u,
+                login_disabled: disabled ? 1 : 0,
+                login_disabled_reason: disabled ? (reason || "Disabled by admin") : null,
+                login_disabled_at: disabled ? Math.floor(Date.now() / 1000) : null,
+              }
+            : u
+        )
+      );
+      if (adminSearchResult?.user?.id === target.id) {
+        await openAdminUserDetail(target.email);
+      }
+    } catch {
+      addToast("Failed to update login status", "error");
+    } finally {
+      setUpdatingLoginStatusUserId(null);
+    }
+  };
+
+  const handleAdminSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminSearchEmail) return;
+    await openAdminUserDetail(adminSearchEmail);
   };
 
   useEffect(() => {
@@ -645,6 +860,175 @@ export default function ProfilePage() {
     setPendingGrant(null);
   };
 
+  const loadRefundPreview = async (silent = false) => {
+    if (!refundLookupEmail) return;
+    setLoadingRefundPreview(true);
+    try {
+      const { adminApi } = await import("@/lib/api-client");
+      const res = await adminApi.getSubscriptionRefundPreview(refundLookupEmail, {
+        channelFeeRate: refundChannelFeeRate,
+        channelFeeMode: refundChannelFeeMode,
+        channelFeeFixed: refundChannelFeeFixed,
+        pointUsdRate: refundPointUsdRate,
+        subscriptionId: selectedRefundSubscriptionId || undefined,
+        orderId: selectedRefundOrderId || undefined,
+      });
+      if (res.success && res.data) {
+        setRefundPreview(res.data);
+        setFinalRefundAmount(roundMoney(Number(res.data.calculation?.suggestedRefund || 0)));
+        if (res.data.calculation?.pointUsdRate) {
+          setRefundPointUsdRate(Number(res.data.calculation.pointUsdRate));
+        }
+      } else {
+        setRefundPreview(null);
+        if (!silent) addToast(res.error?.message || "Failed to load refund preview", "error");
+      }
+    } catch (e: any) {
+      setRefundPreview(null);
+      if (!silent) addToast(e?.message || "Failed to load refund preview", "error");
+    } finally {
+      setLoadingRefundPreview(false);
+    }
+  };
+
+  // Auto recalculate preview when fee/rate inputs change (debounced).
+  useEffect(() => {
+    if (!refundLookupEmail) return;
+    if (!refundPreview && !selectedRefundSubscriptionId) return;
+    const timer = setTimeout(() => {
+      loadRefundPreview(true);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [
+    refundChannelFeeMode,
+    refundChannelFeeRate,
+    refundChannelFeeFixed,
+    refundPointUsdRate,
+    refundLookupEmail,
+    selectedRefundSubscriptionId,
+  ]);
+
+  const executeRefund = async () => {
+    if (!refundPreview?.subscription?.id || !refundPreview?.user?.id) return;
+    if (finalRefundAmount <= 0) {
+      addToast("Final refund amount must be greater than 0", "error");
+      return;
+    }
+    setRefunding(true);
+    try {
+      const { adminApi } = await import("@/lib/api-client");
+      const normalizedFinalRefundAmount = roundMoney(finalRefundAmount);
+      const res = await adminApi.executeSubscriptionRefund({
+        userId: refundPreview.user.id,
+        subscriptionId: refundPreview.subscription.id,
+        orderId: selectedRefundOrderId || undefined,
+        paypalTransactionId: refundPaypalTxnId.trim() || undefined,
+        finalRefundAmount: normalizedFinalRefundAmount,
+        channelFeeRate: refundChannelFeeRate,
+        channelFeeMode: refundChannelFeeMode,
+        channelFeeFixed: refundChannelFeeFixed,
+        pointUsdRate: refundPointUsdRate,
+        reason: refundReason,
+      });
+      if (res.success) {
+        addToast(`Refund succeeded: ${res.data?.currency || 'USD'} ${res.data?.refundedAmount ?? normalizedFinalRefundAmount}`, "success");
+        const refreshed = await adminApi.getUserInfo(refundLookupEmail);
+        if (refreshed?.success) {
+          setAdminSearchResult(refreshed.data);
+        }
+        await lookupRefundTargets();
+        await loadRefundPreview();
+      } else {
+        addToast(res.error?.message || "Refund failed", "error");
+      }
+    } catch (e: any) {
+      addToast(e?.message || "Refund failed", "error");
+    } finally {
+      setRefunding(false);
+    }
+  };
+
+  // Keep channel fee and point/USD ratio in sync against the current preview baseline.
+  const syncPointRateByFeeInput = (
+    nextMode: "ratio" | "fixed",
+    nextFeeRate: number,
+    nextFeeFixed: number
+  ) => {
+    if (!refundPreview?.calculation) return;
+    const paid = Number(refundPreview.calculation?.paidAmount || 0);
+    const usedCredits = Number(refundPreview.calculation?.usedCredits || 0);
+    const targetRefund = Number(refundPreview.calculation?.suggestedRefund || 0);
+    if (paid <= 0 || usedCredits <= 0) return;
+    const feeAmount = nextMode === "fixed"
+      ? Math.max(0, nextFeeFixed)
+      : Math.max(0, paid * Math.max(0, nextFeeRate));
+    const inferredUsedValue = Math.max(0, paid - (targetRefund + feeAmount));
+    const inferredPointRate = inferredUsedValue / usedCredits;
+    setRefundPointUsdRate(roundRate(inferredPointRate));
+  };
+
+  const syncFeeByPointRateInput = (
+    nextPointRate: number
+  ) => {
+    if (!refundPreview?.calculation) return;
+    const paid = Number(refundPreview.calculation?.paidAmount || 0);
+    const usedCredits = Number(refundPreview.calculation?.usedCredits || 0);
+    const targetRefund = Number(refundPreview.calculation?.suggestedRefund || 0);
+    if (paid <= 0) return;
+    const usedValue = Math.max(0, usedCredits * Math.max(0, nextPointRate));
+    const inferredFeeAmount = Math.max(0, paid - usedValue - targetRefund);
+    if (refundChannelFeeMode === "fixed") {
+      setRefundChannelFeeFixed(roundMoney(inferredFeeAmount));
+    } else {
+      setRefundChannelFeeRate(roundRate(inferredFeeAmount / paid));
+    }
+  };
+
+  const lookupRefundTargets = async () => {
+    if (!refundLookupEmail && !refundLookupSubId && !refundLookupTxnId) {
+      addToast("Provide email or PayPal subscription id or transaction id", "error");
+      return;
+    }
+    setRefundLookupLoading(true);
+    try {
+      const { adminApi } = await import("@/lib/api-client");
+      const res = await adminApi.lookupSubscriptionRefundTargets({
+        email: refundLookupEmail || undefined,
+        paypalSubscriptionId: refundLookupSubId || undefined,
+        paypalTransactionId: refundLookupTxnId || undefined,
+      });
+      if (res.success) {
+        setRefundLookupRows(res.data || []);
+        if ((res.data || []).length === 0) addToast("No matched records", "info");
+      } else {
+        addToast(res.error?.message || "Lookup failed", "error");
+      }
+    } catch (e: any) {
+      addToast(e?.message || "Lookup failed", "error");
+    } finally {
+      setRefundLookupLoading(false);
+    }
+  };
+
+  const handleReadMessage = async (id: string) => {
+    const target = messages.find((m) => m.id === id);
+    if (!target || target.is_read === 1) return;
+    const res = await userApi.markMessagesRead({ ids: [id] });
+    if (res.updated > 0) {
+      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, is_read: 1, read_mode: "single", read_at: Math.floor(Date.now() / 1000) } : m)));
+      setMessagesUnread((n) => Math.max(0, n - 1));
+    }
+  };
+
+  const handleReadAllMessages = async () => {
+    const res = await userApi.markMessagesRead({ readAll: true });
+    if (res.updated > 0) {
+      setMessages((prev) => prev.map((m) => ({ ...m, is_read: 1, read_mode: "batch", read_at: m.read_at ?? Math.floor(Date.now() / 1000) })));
+      setMessagesUnread(0);
+      addToast(`Marked ${res.updated} message(s) as read`, "success");
+    }
+  };
+
   if (pageLoading || storeLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -675,6 +1059,7 @@ export default function ProfilePage() {
     { id: "overview", label: "Overview" },
     { id: "orders", label: "Orders" },
     { id: "history", label: "Gallery" },
+    { id: "messages", label: messagesUnread > 0 ? `Messages (${messagesUnread})` : "Messages" },
   ];
 
   if (user?.is_admin) {
@@ -742,7 +1127,14 @@ export default function ProfilePage() {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    if (typeof window !== "undefined") {
+                      const url = new URL(window.location.href);
+                      url.searchParams.set("tab", tab.id);
+                      window.history.replaceState({}, "", url.toString());
+                    }
+                  }}
                   className={`py-4 text-sm font-medium border-b-2 transition-colors ${
                     activeTab === tab.id
                       ? "border-indigo-600 text-indigo-600"
@@ -889,7 +1281,7 @@ export default function ProfilePage() {
                             <td className="py-3">{formatDateTime(order.created_at)}</td>
                             <td className="py-3 capitalize">{order.type}</td>
                             <td className="py-3">{formatCurrency(order.amount, order.currency)}</td>
-                            <td className="py-3">{order.points > 0 ? `+${order.points}` : '-'}</td>
+                            <td className="py-3">{getOrderCreditsDisplay(order)}</td>
                             <td className={`py-3 font-medium ${STATUS_COLORS[order.status] || 'text-gray-600'}`}>
                               {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                             </td>
@@ -903,6 +1295,55 @@ export default function ProfilePage() {
             )}
 
             {/* History Tab */}
+            {activeTab === "messages" && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">System Messages</h3>
+                  <button
+                    onClick={handleReadAllMessages}
+                    disabled={messagesUnread === 0}
+                    className={`px-3 py-1.5 text-sm rounded ${
+                      messagesUnread === 0 ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"
+                    }`}
+                  >
+                    Mark All Read
+                  </button>
+                </div>
+                {loadingMessages ? (
+                  <div className="text-center py-8 text-gray-400">Loading messages...</div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">No messages.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {messages.map((m) => (
+                      <div
+                        key={m.id}
+                        className={`rounded-lg border p-4 ${m.is_read ? "bg-white border-gray-200" : "bg-indigo-50 border-indigo-200"}`}
+                        onClick={() => handleReadMessage(m.id)}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-medium">{m.title}</div>
+                            <div className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{m.content}</div>
+                            <div className="text-xs text-gray-500 mt-2">
+                              {formatDateTime(m.created_at)}
+                              {m.is_read === 1 && m.read_at ? ` | Read at ${formatDateTime(m.read_at)}` : ""}
+                              {m.is_read === 1 && m.read_mode ? ` | ${m.read_mode}` : ""}
+                            </div>
+                          </div>
+                          {m.is_read === 0 ? (
+                            <span className="text-xs px-2 py-1 rounded bg-indigo-600 text-white">Unread</span>
+                          ) : (
+                            <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">Read</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === "history" && (
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -1050,6 +1491,7 @@ export default function ProfilePage() {
                       { id: "routing", label: "Use Case Routing" },
                       { id: "pricing", label: "Use Case Pricing" },
                       { id: "cache", label: "Cache Manager" },
+                      { id: "refunds", label: "Refund Center" },
                       { id: "users", label: "User Search" },
                     ].map((panel) => (
                       <button
@@ -1637,19 +2079,455 @@ export default function ProfilePage() {
                 </div>
                 )}
 
+                {activeAdminPanel === "refunds" && (
+                <div className="bg-white rounded-xl shadow-sm border p-6">
+                  <h2 className="text-xl font-bold mb-4">Refund Center</h2>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Lookup by email, PayPal subscription id, or PayPal transaction id from user statement.
+                  </p>
+                  <div className="grid md:grid-cols-3 gap-3 mb-3">
+                    <input
+                      type="email"
+                      value={refundLookupEmail}
+                      onChange={(e) => setRefundLookupEmail(e.target.value)}
+                      className="px-3 py-2 border rounded-lg text-sm"
+                      placeholder="email@example.com"
+                    />
+                    <input
+                      type="text"
+                      value={refundLookupSubId}
+                      onChange={(e) => setRefundLookupSubId(e.target.value)}
+                      className="px-3 py-2 border rounded-lg text-sm font-mono"
+                      placeholder="PayPal Subscription ID (I-...)"
+                    />
+                    <input
+                      type="text"
+                      value={refundLookupTxnId}
+                      onChange={(e) => setRefundLookupTxnId(e.target.value)}
+                      className="px-3 py-2 border rounded-lg text-sm font-mono"
+                      placeholder="PayPal Transaction ID"
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <button
+                      onClick={lookupRefundTargets}
+                      disabled={refundLookupLoading}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {refundLookupLoading ? "Searching..." : "Search Refund Targets"}
+                    </button>
+                  </div>
+
+                  {refundLookupRows.length > 0 && (
+                    <div className="overflow-x-auto mb-4">
+                      <table className="w-full text-sm border rounded-lg">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="px-3 py-2 text-left">User</th>
+                            <th className="px-3 py-2 text-left">Plan</th>
+                            <th className="px-3 py-2 text-left">Credits</th>
+                            <th className="px-3 py-2 text-left">Subscription Status</th>
+                            <th className="px-3 py-2 text-left">Subscription ID</th>
+                            <th className="px-3 py-2 text-left">Order</th>
+                            <th className="px-3 py-2 text-left">Order Status</th>
+                            <th className="px-3 py-2 text-left">Refundable</th>
+                            <th className="px-3 py-2 text-left">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {refundLookupRows.map((r, idx) => (
+                            <tr key={`${r.subscription_id || 'sub'}-${idx}`} className="border-b last:border-0">
+                              <td className="px-3 py-2">{r.user_email}</td>
+                              <td className="px-3 py-2">{r.subscription_plan_display || PLAN_LABELS[r.subscription_plan] || r.subscription_plan || '-'}</td>
+                              <td className="px-3 py-2 text-xs">
+                                <div>Expected/cycle: {r.expected_cycle_credits ?? 0}</div>
+                                <div className="text-gray-500">Initial grant: {r.initial_grant_credits ?? 0}</div>
+                                <div className="text-gray-500">Granted(total): {r.granted_subscription_credits ?? 0}</div>
+                              </td>
+                              <td className="px-3 py-2">{r.subscription_status || '-'}</td>
+                              <td className="px-3 py-2 font-mono text-xs">{r.provider_subscription_id || '-'}</td>
+                              <td className="px-3 py-2 text-xs">{r.order_id ? `${r.order_id.slice(0, 10)}...` : '-'}</td>
+                              <td className="px-3 py-2">{r.order_status || '-'}</td>
+                              <td className="px-3 py-2">
+                                {Number(r.can_refund) === 1 ? (
+                                  <span className="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700">Yes</span>
+                                ) : (
+                                  <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600" title={r.non_refundable_reason || ''}>No</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2">
+                                <button
+                                  className={`px-2 py-1 text-xs rounded ${
+                                    Number(r.can_refund) === 1
+                                      ? "bg-rose-100 text-rose-700 hover:bg-rose-200"
+                                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                  }`}
+                                  disabled={Number(r.can_refund) !== 1}
+                                  onClick={async () => {
+                                    if (Number(r.can_refund) !== 1) {
+                                      addToast(r.non_refundable_reason || "This row is not refundable", "info");
+                                      return;
+                                    }
+                                    setRefundLookupEmail(r.user_email || "");
+                                    setRefundLookupSubId(r.provider_subscription_id || "");
+                                    setSelectedRefundSubscriptionId(r.subscription_id || "");
+                                    setSelectedRefundOrderId(r.order_id || "");
+                                    setRefundPaypalTxnId("");
+                                    setRefundPreview(null);
+                                    if (r.user_email) {
+                                      setLoadingRefundPreview(true);
+                                      try {
+                                        const { adminApi } = await import("@/lib/api-client");
+                                        const preview = await adminApi.getSubscriptionRefundPreview(r.user_email, {
+                                          channelFeeRate: refundChannelFeeRate,
+                                          channelFeeMode: refundChannelFeeMode,
+                                          channelFeeFixed: refundChannelFeeFixed,
+                                          pointUsdRate: refundPointUsdRate,
+                                          subscriptionId: r.subscription_id || undefined,
+                                          orderId: r.order_id || undefined,
+                                        });
+                                        if (preview?.success) {
+                                          setRefundPreview(preview.data);
+                                          setFinalRefundAmount(roundMoney(Number(preview.data?.calculation?.suggestedRefund || 0)));
+                                        }
+                                      } finally {
+                                        setLoadingRefundPreview(false);
+                                      }
+                                    }
+                                  }}
+                                >
+                                  Select
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div className="mt-4 bg-rose-50 p-4 rounded-xl border border-rose-100">
+                    <h3 className="font-bold text-rose-900 mb-3">Refund Calculator & Execute</h3>
+                    <div className="grid md:grid-cols-4 gap-3 mb-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Channel Fee Mode</label>
+                        <select
+                          value={refundChannelFeeMode}
+                          onChange={(e) => {
+                            const nextMode = (e.target.value as "ratio" | "fixed") || "ratio";
+                            setRefundChannelFeeMode(nextMode);
+                            syncPointRateByFeeInput(nextMode, refundChannelFeeRate, refundChannelFeeFixed);
+                          }}
+                          className="w-full px-3 py-2 border rounded-lg text-sm"
+                        >
+                          <option value="ratio">Ratio (default)</option>
+                          <option value="fixed">Fixed</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">
+                          {refundChannelFeeMode === "fixed" ? "Channel Fee Fixed Amount" : "Channel Fee Rate"}
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={refundChannelFeeMode === "fixed" ? undefined : 1}
+                          step={refundChannelFeeMode === "fixed" ? 0.01 : 0.001}
+                          value={refundChannelFeeMode === "fixed" ? refundChannelFeeFixed : refundChannelFeeRate}
+                          onChange={(e) => {
+                            const next = Number(e.target.value || 0);
+                            if (refundChannelFeeMode === "fixed") {
+                              const nextFixed = roundMoney(next);
+                              setRefundChannelFeeFixed(nextFixed);
+                              syncPointRateByFeeInput("fixed", refundChannelFeeRate, nextFixed);
+                            } else {
+                              const nextRate = roundRate(next);
+                              setRefundChannelFeeRate(nextRate);
+                              syncPointRateByFeeInput("ratio", nextRate, refundChannelFeeFixed);
+                            }
+                          }}
+                          className="w-full px-3 py-2 border rounded-lg text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Point/USD Ratio</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.0001}
+                          value={refundPointUsdRate}
+                          onChange={(e) => {
+                            const nextPointRate = roundRate(Number(e.target.value || 0));
+                            setRefundPointUsdRate(nextPointRate);
+                            syncFeeByPointRateInput(nextPointRate);
+                          }}
+                          className="w-full px-3 py-2 border rounded-lg text-sm"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs text-gray-600 mb-1">Refund Reason</label>
+                        <input
+                          type="text"
+                          value={refundReason}
+                          onChange={(e) => setRefundReason(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-sm"
+                        />
+                      </div>
+                      <div className="md:col-span-4">
+                        <label className="block text-xs text-gray-600 mb-1">PayPal Transaction ID (Optional, use statement number for direct refund target)</label>
+                        <input
+                          type="text"
+                          value={refundPaypalTxnId}
+                          onChange={(e) => setRefundPaypalTxnId(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-sm font-mono"
+                          placeholder="e.g. 6HD15223EH201692W or capture/sale id"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        onClick={async () => {
+                          if (!refundLookupEmail) {
+                            addToast("Select a target row or input email first", "error");
+                            return;
+                          }
+                          await loadRefundPreview();
+                        }}
+                        disabled={loadingRefundPreview}
+                        className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50"
+                      >
+                        {loadingRefundPreview ? "Calculating..." : "Calculate Refund"}
+                      </button>
+                    </div>
+                    {refundPreview && (
+                      <div className="bg-white rounded-lg border p-3 text-sm">
+                        <div className="grid md:grid-cols-2 gap-3">
+                          <p>Paid: <span className="font-semibold">{formatCurrency(refundPreview.calculation?.paidAmount || 0, refundPreview.calculation?.currency || "USD")}</span></p>
+                          <p>Expected Credits/Cycle: <span className="font-semibold">{refundPreview.calculation?.cycleCredits || 0}</span></p>
+                          <p>Initial Grant: <span className="font-semibold">{refundPreview.calculation?.initialGrantCredits || 0}</span></p>
+                          <p>Used Credits: <span className="font-semibold">{refundPreview.calculation?.usedCredits || 0}</span></p>
+                          <p>Granted Credits (period): <span className="font-semibold">{refundPreview.calculation?.grantedCredits || 0}</span></p>
+                          <p>Used Value: <span className="font-semibold">{formatCurrency(refundPreview.calculation?.usedValue || 0, refundPreview.calculation?.currency || "USD")}</span></p>
+                          <p>Fee Amount: <span className="font-semibold">{formatCurrency(refundPreview.calculation?.feeAmount || 0, refundPreview.calculation?.currency || "USD")}</span></p>
+                          <p>Suggested Refund: <span className="font-semibold text-green-700">{formatCurrency(refundPreview.calculation?.suggestedRefund || 0, refundPreview.calculation?.currency || "USD")}</span></p>
+                        </div>
+                        <div className="mt-3 flex items-end gap-3">
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">Final Refund Amount</label>
+                            <input
+                              type="number"
+                              min={0}
+                              step={0.01}
+                              value={finalRefundAmount}
+                              onChange={(e) => setFinalRefundAmount(roundMoney(Number(e.target.value || 0)))}
+                              onBlur={() => setFinalRefundAmount(roundMoney(finalRefundAmount))}
+                              className="px-3 py-2 border rounded-lg text-sm"
+                            />
+                          </div>
+                          <button
+                            onClick={executeRefund}
+                            disabled={refunding}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {refunding ? "Refunding..." : "Execute Refund"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                )}
+
                 {activeAdminPanel === "users" && (
                 <div className="bg-white rounded-xl shadow-sm border p-6">
-                  <h2 className="text-xl font-bold mb-4">User Search (Subscriptions & Credits)</h2>
+                  <h2 className="text-xl font-bold mb-4">User Management</h2>
+                  <form onSubmit={handleAdminUserListSearch} className="grid md:grid-cols-6 gap-3 mb-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-500 mb-1">Email</label>
+                      <input
+                        type="text"
+                        value={adminListEmail}
+                        onChange={e => setAdminListEmail(e.target.value)}
+                        placeholder="email keyword or exact"
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Email Match</label>
+                      <select
+                        value={adminListEmailMatch}
+                        onChange={e => setAdminListEmailMatch(e.target.value as "exact" | "fuzzy")}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="fuzzy">Fuzzy</option>
+                        <option value="exact">Exact</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Nickname</label>
+                      <input
+                        type="text"
+                        value={adminListName}
+                        onChange={e => setAdminListName(e.target.value)}
+                        placeholder="nickname keyword"
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">IP</label>
+                      <input
+                        type="text"
+                        value={adminListIp}
+                        onChange={e => setAdminListIp(e.target.value)}
+                        placeholder="ip keyword"
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Page Size</label>
+                      <select
+                        value={adminUserListPageSize}
+                        onChange={e => {
+                          setAdminUserListPageSize(Number(e.target.value) as 10 | 20 | 50 | 100);
+                          setAdminUserListPage(1);
+                        }}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-6 flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={adminUserListLoading}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {adminUserListLoading ? "Searching..." : "Search Users"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminListEmail("");
+                          setAdminListEmailMatch("fuzzy");
+                          setAdminListName("");
+                          setAdminListIp("");
+                          setAdminUserListPage(1);
+                          fetchAdminUserList(1, adminUserListPageSize);
+                        }}
+                        className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </form>
+
+                  <div className="mb-6 border rounded-lg overflow-hidden">
+                    <div className="px-4 py-2 bg-gray-50 text-sm text-gray-600">
+                      Total: {adminUserListTotal} users
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-y">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Email</th>
+                            <th className="px-3 py-2 text-left">Nickname</th>
+                            <th className="px-3 py-2 text-left">IP</th>
+                            <th className="px-3 py-2 text-left">Country</th>
+                            <th className="px-3 py-2 text-left">Language</th>
+                            <th className="px-3 py-2 text-left">Fingerprint</th>
+                            <th className="px-3 py-2 text-left">Plan</th>
+                            <th className="px-3 py-2 text-left">Status</th>
+                            <th className="px-3 py-2 text-left">Registered</th>
+                            <th className="px-3 py-2 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {adminUserListLoading ? (
+                            <tr>
+                              <td className="px-3 py-6 text-center text-gray-500" colSpan={10}>Loading...</td>
+                            </tr>
+                          ) : adminUserList.length === 0 ? (
+                            <tr>
+                              <td className="px-3 py-6 text-center text-gray-500" colSpan={10}>No users found.</td>
+                            </tr>
+                          ) : adminUserList.map((u) => (
+                            <tr key={u.id} className="border-t">
+                              <td className="px-3 py-2">{u.email}</td>
+                              <td className="px-3 py-2">{u.name || "-"}</td>
+                              <td className="px-3 py-2">{u.last_ip || "-"}</td>
+                              <td className="px-3 py-2">{u.country || "-"}</td>
+                              <td className="px-3 py-2">{formatLanguageTag(u.preferred_language)}</td>
+                              <td className="px-3 py-2 max-w-[160px] truncate" title={u.fingerprint || "-"}>
+                                {u.fingerprint || "-"}
+                              </td>
+                              <td className="px-3 py-2">{u.subscription_display || u.subscription_type || "free"}</td>
+                              <td className="px-3 py-2">
+                                {u.login_disabled ? (
+                                  <span className="text-red-600">Disabled</span>
+                                ) : (
+                                  <span className="text-green-600">Active</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2">{formatDate(u.created_at)}</td>
+                              <td className="px-3 py-2">
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => openAdminUserDetail(u.email)}
+                                    className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+                                  >
+                                    Details
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={updatingLoginStatusUserId === u.id}
+                                    onClick={() => handleSetUserLoginStatus(u, !Boolean(u.login_disabled))}
+                                    className={`px-2 py-1 text-xs rounded text-white disabled:opacity-50 ${u.login_disabled ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}`}
+                                  >
+                                    {updatingLoginStatusUserId === u.id ? "Updating..." : u.login_disabled ? "Enable Login" : "Disable Login"}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="px-4 py-3 border-t flex items-center justify-between text-sm">
+                      <button
+                        type="button"
+                        disabled={adminUserListPage <= 1 || adminUserListLoading}
+                        onClick={() => setAdminUserListPage((p) => Math.max(1, p - 1))}
+                        className="px-3 py-1 border rounded disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <span>Page {adminUserListPage}</span>
+                      <button
+                        type="button"
+                        disabled={adminUserListPage * adminUserListPageSize >= adminUserListTotal || adminUserListLoading}
+                        onClick={() => setAdminUserListPage((p) => p + 1)}
+                        className="px-3 py-1 border rounded disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+
+                  <h3 className="text-base font-semibold mb-2">User Detail (by Email)</h3>
                   <form onSubmit={handleAdminSearch} className="flex gap-3 mb-6">
-                    <input 
-                      type="email" 
-                      value={adminSearchEmail} 
-                      onChange={e => setAdminSearchEmail(e.target.value)} 
-                      placeholder="Enter user email" 
+                    <input
+                      type="email"
+                      value={adminSearchEmail}
+                      onChange={e => setAdminSearchEmail(e.target.value)}
+                      placeholder="Enter user email"
                       className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
-                    <button 
-                      type="submit" 
+                    <button
+                      type="submit"
                       disabled={adminSearchLoading}
                       className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
                     >
@@ -1670,12 +2548,64 @@ export default function ProfilePage() {
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Current Plan</p>
-                          <p className="font-medium capitalize">{adminSearchResult.user.subscription_type || 'free'}</p>
+                          <p className="font-medium capitalize">{adminSearchResult.subscription_display || adminSearchResult.user.subscription_type || 'free'}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Member Since</p>
                           <p className="font-medium">{formatDate(adminSearchResult.user.created_at)}</p>
                         </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Last IP</p>
+                          <p className="font-medium">{adminSearchResult.user.last_ip || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Country / Language</p>
+                          <p className="font-medium">{adminSearchResult.user.country || "-"} / {formatLanguageTag(adminSearchResult.user.preferred_language)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Fingerprint</p>
+                          <p className="font-mono text-xs break-all">{adminSearchResult.user.fingerprint || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Login Status</p>
+                          <p className={`font-medium ${adminSearchResult.user.login_disabled ? "text-red-600" : "text-green-600"}`}>
+                            {adminSearchResult.user.login_disabled ? "Disabled" : "Active"}
+                          </p>
+                          {adminSearchResult.user.login_disabled_reason && (
+                            <p className="text-xs text-red-500 mt-1">{adminSearchResult.user.login_disabled_reason}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mb-4 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleSetUserLoginStatus({
+                            id: adminSearchResult.user.id,
+                            email: adminSearchResult.user.email,
+                            name: adminSearchResult.user.name || "",
+                            subscription_type: adminSearchResult.user.subscription_type || "free",
+                            subscription_display: adminSearchResult.subscription_display || adminSearchResult.user.subscription_type || "free",
+                            points: adminSearchResult.user.credits ?? adminSearchResult.user.points ?? 0,
+                            created_at: adminSearchResult.user.created_at,
+                            last_ip: adminSearchResult.user.last_ip || null,
+                            country: adminSearchResult.user.country || null,
+                            preferred_language: adminSearchResult.user.preferred_language || null,
+                            fingerprint: adminSearchResult.user.fingerprint || null,
+                            device_type: adminSearchResult.user.device_type || null,
+                            is_admin: Number(adminSearchResult.user.is_admin || 0),
+                            login_disabled: Number(adminSearchResult.user.login_disabled || 0),
+                            login_disabled_reason: adminSearchResult.user.login_disabled_reason || null,
+                            login_disabled_at: adminSearchResult.user.login_disabled_at || null,
+                          }, !Boolean(adminSearchResult.user.login_disabled))}
+                          disabled={updatingLoginStatusUserId === adminSearchResult.user.id}
+                          className={`px-3 py-1.5 text-sm rounded text-white disabled:opacity-50 ${adminSearchResult.user.login_disabled ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}`}
+                        >
+                          {updatingLoginStatusUserId === adminSearchResult.user.id
+                            ? "Updating..."
+                            : adminSearchResult.user.login_disabled
+                              ? "Enable Login"
+                              : "Disable Login"}
+                        </button>
                       </div>
 
                       {/* Grant Credits Form */}
@@ -1814,6 +2744,13 @@ export default function ProfilePage() {
                                       <div>
                                         <p className="font-medium capitalize">{tx.action_type?.replace(/_/g, ' ')}</p>
                                         <p className="text-gray-400 text-xs">{tx.created_at}</p>
+                                        {(tx.order_amount !== null || tx.order_refunded_amount !== null || tx.clawback_credits !== null) && (
+                                          <p className="text-[11px] text-gray-500 mt-1">
+                                            {tx.order_amount !== null ? `Paid: ${tx.order_currency || 'USD'} ${Number(tx.order_amount).toFixed(2)}` : ''}
+                                            {tx.order_refunded_amount !== null ? ` | Refunded: ${(tx.order_currency || 'USD')} ${Number(tx.order_refunded_amount).toFixed(2)}` : ''}
+                                            {tx.clawback_credits !== null ? ` | Clawback: ${tx.clawback_credits} credits${tx.clawback_amount ? ` (~${tx.order_currency || 'USD'} ${Number(tx.clawback_amount).toFixed(2)})` : ''}` : ''}
+                                          </p>
+                                        )}
                                       </div>
                                       <div className="text-right">
                                         <p className={`font-bold ${tx.change_amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -1834,7 +2771,11 @@ export default function ProfilePage() {
                                         <tr>
                                           <th className="px-4 py-2">ID</th>
                                           <th className="px-4 py-2">Type</th>
-                                          <th className="px-4 py-2">Amount</th>
+                                          <th className="px-4 py-2">Paid</th>
+                                          <th className="px-4 py-2">Used</th>
+                                          <th className="px-4 py-2">Refunded</th>
+                                          <th className="px-4 py-2">Coverage</th>
+                                          <th className="px-4 py-2">Remaining</th>
                                           <th className="px-4 py-2">Status</th>
                                           <th className="px-4 py-2">Date</th>
                                         </tr>
@@ -1844,7 +2785,27 @@ export default function ProfilePage() {
                                           <tr key={idx} className="border-b last:border-0">
                                             <td className="px-4 py-2 text-xs font-mono">{order.id.slice(0, 8)}...</td>
                                             <td className="px-4 py-2 capitalize">{order.type}</td>
-                                            <td className="px-4 py-2">{formatCurrency(order.amount, order.currency)}</td>
+                                            <td className="px-4 py-2">{formatCurrency((order as any).paid_amount ?? order.amount, order.currency)}</td>
+                                            <td className="px-4 py-2 text-xs">
+                                              {(order as any).used_amount != null
+                                                ? `${formatCurrency((order as any).used_amount, order.currency)} (${(order as any).used_credits ?? 0}c)`
+                                                : '-'}
+                                            </td>
+                                            <td className="px-4 py-2 text-xs">
+                                              {(order as any).refunded_amount != null
+                                                ? `${formatCurrency((order as any).refunded_amount, order.currency)} (${(order as any).refunded_credits ?? 0}c)`
+                                                : '-'}
+                                            </td>
+                                            <td className="px-4 py-2 text-xs">
+                                              {(order as any).refunded_amount != null && ((order as any).paid_amount ?? order.amount) > 0
+                                                ? `${Math.min(100, Math.max(0, (((order as any).refunded_amount / ((order as any).paid_amount ?? order.amount)) * 100))).toFixed(1)}%`
+                                                : '-'}
+                                            </td>
+                                            <td className="px-4 py-2 text-xs">
+                                              {(order as any).refundable_amount != null
+                                                ? `${formatCurrency((order as any).refundable_amount, order.currency)} (${(order as any).remaining_credits ?? 0}c)`
+                                                : '-'}
+                                            </td>
                                             <td className={`px-4 py-2 font-medium ${STATUS_COLORS[order.status] || 'text-gray-600'}`}>{order.status}</td>
                                             <td className="px-4 py-2 text-gray-500">{formatDate(order.created_at)}</td>
                                           </tr>

@@ -5,14 +5,20 @@ interface User {
   email: string;
   name: string;
   avatar: string;
-  subscription_type: "free" | "creator" | "plus" | "ultra";
+  // Membership type shown to users: Free/Creator/Plus/Studio
+  subscription_type: "free" | "creator" | "plus" | "studio";
+  subscription_interval?: "monthly" | "yearly" | null;
   tier?: "free" | "basic" | "pro" | "max" | "ultra"; // Added tier explicitly
   subscription_expire?: number;
   created_at?: number;
   credits: number;
   is_public_default?: number;
   isWhitelisted?: boolean;
+  canBuyPoints?: boolean;
   is_admin?: boolean;
+  purchase_paused?: boolean;
+  purchase_paused_until?: number | null;
+  purchase_pause_reason?: string | null;
 }
 
 interface UserStore {

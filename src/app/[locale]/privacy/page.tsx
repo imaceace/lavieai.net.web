@@ -36,6 +36,20 @@ export default function PrivacyPolicyPage() {
 
           <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">{t('content.sections.2.title')}</h2>
           <p className="mb-8">{t('content.sections.2.text')}</p>
+
+          <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">Subscription Switch & Refund Settlement Policy</h2>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-8">
+            <p className="mb-3">
+              When you switch subscription plans (tier or billing cycle), your previous subscription is settled automatically based on remaining refundable credits under our current refund policy.
+            </p>
+            <ul className="list-disc pl-5 space-y-2 text-sm">
+              <li>Plan switch is effective immediately once the new order is confirmed.</li>
+              <li>Previous subscription is canceled, and refund settlement is calculated from remaining refundable credits tied to the previous order.</li>
+              <li>Refund arrival depends on payment-channel processing time and is typically completed within 3-7 business days.</li>
+              <li>For mistaken upgrades, contact support within 24 hours for priority review. Priority review does not guarantee instant channel settlement.</li>
+              <li>Refund and credit-settlement processing may involve automated retries for reliability if the payment channel is temporarily unavailable.</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
