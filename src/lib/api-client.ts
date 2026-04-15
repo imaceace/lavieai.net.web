@@ -1006,12 +1006,14 @@ export const uploadApi = {
 
 // Gallery API
 export const galleryApi = {
-  getImages: async (params?: { style?: string; limit?: number; offset?: number }): Promise<{ images: Array<{ id: string; result_url: string; prompt: string; style: string | null; use_case: string | null }> }> => {
+  getImages: async (params?: { style?: string; limit?: number; offset?: number; sort?: string; exclude?: string }): Promise<{ images: Array<{ id: string; result_url: string; prompt: string; style: string | null; use_case: string | null }> }> => {
     try {
       const searchParams = new URLSearchParams();
       if (params?.style) searchParams.set('style', params.style);
       if (params?.limit) searchParams.set('limit', String(params.limit));
       if (params?.offset) searchParams.set('offset', String(params.offset));
+      if (params?.sort) searchParams.set('sort', params.sort);
+      if (params?.exclude) searchParams.set('exclude', params.exclude);
 
       const res = await fetch(`${API_BASE}/api/gallery?${searchParams}`, {
         credentials: 'include',
@@ -1021,6 +1023,19 @@ export const galleryApi = {
       return { images: response.data || [] };
     } catch {
       return { images: [] };
+    }
+  },
+
+  getWork: async (id: string): Promise<any> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/gallery/${id}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.success ? data.data : null;
+    } catch {
+      return null;
     }
   },
 
