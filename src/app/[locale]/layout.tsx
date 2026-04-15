@@ -10,8 +10,6 @@ import { ToastContainer } from "@/components/ui/ToastContainer";
 import { LoginModal } from "@/components/auth/LoginModal";
 import { TurnstileChallengeModal } from "@/components/ui/TurnstileChallengeModal";
 
-export const runtime = "edge";
-
 export const metadata: Metadata = {
   title: "Lavie AI - Free AI Image Generator",
   description: "Create stunning images with Lavie AI. Free text to image, AI art creation. No login required. Start creating now with Lavie AI Image Generator!",

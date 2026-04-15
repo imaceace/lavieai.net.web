@@ -48,3 +48,5 @@ wrangler.toml.bak
 # --- 测试 ---
 coverage/
 .nyc_output/
+# OpenNext
+.open-next
