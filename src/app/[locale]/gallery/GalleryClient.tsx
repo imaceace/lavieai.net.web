@@ -123,20 +123,11 @@ export function GalleryClient({
     }
 
     try {
-      const params = new URLSearchParams();
-      params.set('limit', String(LIMIT));
-      params.set('offset', String(currentOffset));
-      
-      if (selectedStyle === 'popular') {
-        params.set('sort', 'popular');
-      } else if (selectedStyle) {
-        params.set('style', selectedStyle);
-      }
-
       const res = await galleryApi.getImages({
         style: selectedStyle === 'popular' ? undefined : (selectedStyle || undefined),
         limit: LIMIT,
         offset: currentOffset,
+        sort: selectedStyle === 'popular' ? 'popular' : undefined,
       });
       
       if (res && res.images) {
