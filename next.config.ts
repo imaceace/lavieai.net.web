@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
-const API_URL = process.env.API_URL || "http://localhost:8787";
+const API_URL = process.env.API_URL || "https://api.lavieai.net";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 
