@@ -100,9 +100,12 @@ interface SubscriptionPlan {
 
 // Auth API
 export const authApi = {
-  googleLogin: async () => {
+  googleLogin: async (returnTo?: string) => {
     const fingerprint = await getFingerprint();
     const target = new URL(`${API_BASE}/api/auth/google`);
+    if (returnTo) {
+      target.searchParams.set('returnTo', returnTo);
+    }
     if (fingerprint) {
       target.searchParams.set('fp', fingerprint);
     }
@@ -204,6 +207,12 @@ export const adminApi = {
     emailMatch?: 'exact' | 'fuzzy';
     name?: string;
     ip?: string;
+    country?: string;
+    regionCode?: string;
+    city?: string;
+    timezone?: string;
+    language?: string;
+    asn?: string;
     page?: number;
     pageSize?: 10 | 20 | 50 | 100;
   }) => {
@@ -212,9 +221,24 @@ export const adminApi = {
     if (params?.emailMatch) q.set('email_match', params.emailMatch);
     if (params?.name) q.set('name', params.name);
     if (params?.ip) q.set('ip', params.ip);
+    if (params?.country) q.set('country', params.country);
+    if (params?.regionCode) q.set('region_code', params.regionCode);
+    if (params?.city) q.set('city', params.city);
+    if (params?.timezone) q.set('timezone', params.timezone);
+    if (params?.language) q.set('language', params.language);
+    if (params?.asn) q.set('asn', params.asn);
     if (params?.page) q.set('page', String(params.page));
     if (params?.pageSize) q.set('page_size', String(params.pageSize));
     const res = await fetch(`${API_BASE}/api/admin/users?${q.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return res.json();
+  },
+  getAudienceStats: async (limit = 10) => {
+    const q = new URLSearchParams();
+    q.set('limit', String(limit));
+    const res = await fetch(`${API_BASE}/api/admin/audience-stats?${q.toString()}`, {
       method: 'GET',
       credentials: 'include',
     });

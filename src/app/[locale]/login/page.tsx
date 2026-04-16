@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.lavieai.net';
+import { authApi } from "@/lib/api-client";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -23,10 +22,13 @@ export default function LoginPage() {
     setIsLoading(true);
     setError("");
 
-    const returnTo = window.location.href.split("?")[0].replace("/login", "") || "http://localhost:3000";
-    const loginUrl = `${API_BASE}/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`;
-
-    window.location.href = loginUrl;
+    try {
+      const returnTo = window.location.href.split("?")[0].replace("/login", "") || window.location.origin;
+      await authApi.googleLogin(returnTo);
+    } catch (err: any) {
+      setError(err?.message || "Google login failed");
+      setIsLoading(false);
+    }
   };
 
   return (

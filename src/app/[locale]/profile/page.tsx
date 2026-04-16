@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/useToast";
 import { UpgradeModal } from "@/components/auth/UpgradeModal";
 
 type Tab = "overview" | "orders" | "history" | "messages" | "admin";
-type AdminPanelTab = "whitelist" | "routing" | "pricing" | "cache" | "refunds" | "users";
+type AdminPanelTab = "whitelist" | "routing" | "pricing" | "cache" | "refunds" | "users" | "audience";
 
 interface Order {
   id: string;
@@ -58,6 +58,17 @@ interface Work {
   created_at: number;
   points_cost: number;
   is_recommended?: number;
+  ip?: string | null;
+  country?: string | null;
+  region?: string | null;
+  region_code?: string | null;
+  city?: string | null;
+  timezone?: string | null;
+  continent?: string | null;
+  colo?: string | null;
+  asn?: number | null;
+  as_organization?: string | null;
+  device_type?: string | null;
 }
 
 interface RoutingModel {
@@ -135,6 +146,14 @@ interface AdminUserListItem {
   created_at: number;
   last_ip?: string | null;
   country?: string | null;
+  region?: string | null;
+  region_code?: string | null;
+  city?: string | null;
+  timezone?: string | null;
+  continent?: string | null;
+  colo?: string | null;
+  asn?: number | null;
+  as_organization?: string | null;
   preferred_language?: string | null;
   fingerprint?: string | null;
   device_type?: string | null;
@@ -142,6 +161,29 @@ interface AdminUserListItem {
   login_disabled: number;
   login_disabled_reason?: string | null;
   login_disabled_at?: number | null;
+}
+
+interface AudienceDimensionRow {
+  label: string;
+  user_count: number;
+  work_count: number;
+}
+
+interface AudienceStatsData {
+  summary: {
+    total_users: number;
+    total_works: number;
+    active_users_7d: number;
+    works_7d: number;
+  };
+  dimensions: {
+    countries: AudienceDimensionRow[];
+    regions: AudienceDimensionRow[];
+    cities: AudienceDimensionRow[];
+    timezones: AudienceDimensionRow[];
+    languages: AudienceDimensionRow[];
+    asns: AudienceDimensionRow[];
+  };
 }
 
 const PLAN_LABELS: Record<string, string> = {
@@ -217,6 +259,73 @@ function formatLanguageTag(tag?: string | null): string {
   }
 }
 
+function formatGeoSummary(data: {
+  city?: string | null;
+  region?: string | null;
+  region_code?: string | null;
+  country?: string | null;
+}): string {
+  const parts = [
+    data.city,
+    data.region_code || data.region,
+    data.country,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : "-";
+}
+
+function formatGeoMeta(data: {
+  timezone?: string | null;
+  continent?: string | null;
+}): string {
+  const parts = [data.timezone, data.continent].filter(Boolean);
+  return parts.length > 0 ? parts.join(" / ") : "-";
+}
+
+function formatNetworkSummary(data: {
+  asn?: number | null;
+  as_organization?: string | null;
+  colo?: string | null;
+}): string {
+  const asnLabel = data.asn ? `AS${data.asn}` : "";
+  const org = data.as_organization || "";
+  const primary = [asnLabel, org].filter(Boolean).join(" ");
+  return primary || "-";
+}
+
+function renderAudienceTable(title: string, rows: AudienceDimensionRow[]) {
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <div className="px-4 py-2 bg-gray-50 border-b">
+        <h3 className="font-semibold text-sm">{title}</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-gray-600">
+            <tr>
+              <th className="px-3 py-2 text-left">Value</th>
+              <th className="px-3 py-2 text-right">Users</th>
+              <th className="px-3 py-2 text-right">Works</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td className="px-3 py-4 text-center text-gray-500" colSpan={3}>No data</td>
+              </tr>
+            ) : rows.map((row) => (
+              <tr key={`${title}-${row.label}`} className="border-t">
+                <td className="px-3 py-2 break-all">{row.label}</td>
+                <td className="px-3 py-2 text-right">{row.user_count}</td>
+                <td className="px-3 py-2 text-right">{row.work_count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function roundMoney(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.round(value * 100) / 100;
@@ -280,6 +389,12 @@ export default function ProfilePage() {
   const [adminListEmailMatch, setAdminListEmailMatch] = useState<"exact" | "fuzzy">("fuzzy");
   const [adminListName, setAdminListName] = useState("");
   const [adminListIp, setAdminListIp] = useState("");
+  const [adminListCountry, setAdminListCountry] = useState("");
+  const [adminListRegionCode, setAdminListRegionCode] = useState("");
+  const [adminListCity, setAdminListCity] = useState("");
+  const [adminListTimezone, setAdminListTimezone] = useState("");
+  const [adminListLanguage, setAdminListLanguage] = useState("");
+  const [adminListAsn, setAdminListAsn] = useState("");
   const [adminUserList, setAdminUserList] = useState<AdminUserListItem[]>([]);
   const [adminUserListLoading, setAdminUserListLoading] = useState(false);
   const [adminUserListPage, setAdminUserListPage] = useState(1);
@@ -298,6 +413,8 @@ export default function ProfilePage() {
   const [adminSelectedWorks, setAdminSelectedWorks] = useState<Set<string>>(new Set());
   const [adminExtendingWorks, setAdminExtendingWorks] = useState(false);
   const [activeAdminPanel, setActiveAdminPanel] = useState<AdminPanelTab>("whitelist");
+  const [audienceStats, setAudienceStats] = useState<AudienceStatsData | null>(null);
+  const [audienceStatsLoading, setAudienceStatsLoading] = useState(false);
   const [routingPolicies, setRoutingPolicies] = useState<RoutingPolicy[]>([]);
   const [routingModels, setRoutingModels] = useState<RoutingModel[]>([]);
   const [loadingRouting, setLoadingRouting] = useState(false);
@@ -484,6 +601,12 @@ export default function ProfilePage() {
         emailMatch: adminListEmailMatch,
         name: adminListName || undefined,
         ip: adminListIp || undefined,
+        country: adminListCountry || undefined,
+        regionCode: adminListRegionCode || undefined,
+        city: adminListCity || undefined,
+        timezone: adminListTimezone || undefined,
+        language: adminListLanguage || undefined,
+        asn: adminListAsn || undefined,
         page,
         pageSize,
       });
@@ -497,6 +620,23 @@ export default function ProfilePage() {
       addToast("Failed to load user list", "error");
     } finally {
       setAdminUserListLoading(false);
+    }
+  };
+
+  const fetchAudienceStats = async (limit = 10) => {
+    setAudienceStatsLoading(true);
+    try {
+      const { adminApi } = await import("@/lib/api-client");
+      const res = await adminApi.getAudienceStats(limit);
+      if (res?.success) {
+        setAudienceStats(res.data || null);
+      } else {
+        addToast(res?.error?.message || "Failed to load audience stats", "error");
+      }
+    } catch {
+      addToast("Failed to load audience stats", "error");
+    } finally {
+      setAudienceStatsLoading(false);
     }
   };
 
@@ -526,6 +666,11 @@ export default function ProfilePage() {
     if (activeTab !== "admin" || activeAdminPanel !== "users" || !user?.is_admin) return;
     fetchAdminUserList(adminUserListPage, adminUserListPageSize);
   }, [activeTab, activeAdminPanel, user?.is_admin, adminUserListPage, adminUserListPageSize]);
+
+  useEffect(() => {
+    if (activeTab !== "admin" || activeAdminPanel !== "audience" || !user?.is_admin) return;
+    fetchAudienceStats(10);
+  }, [activeTab, activeAdminPanel, user?.is_admin]);
 
   const openEditPricing = (policy: PricingPolicy) => {
     setEditingPricingId(policy.id);
@@ -1492,6 +1637,7 @@ export default function ProfilePage() {
                       { id: "pricing", label: "Use Case Pricing" },
                       { id: "cache", label: "Cache Manager" },
                       { id: "refunds", label: "Refund Center" },
+                      { id: "audience", label: "Audience Stats" },
                       { id: "users", label: "User Search" },
                     ].map((panel) => (
                       <button
@@ -2338,6 +2484,61 @@ export default function ProfilePage() {
                 </div>
                 )}
 
+                {activeAdminPanel === "audience" && (
+                <div className="bg-white rounded-xl shadow-sm border p-6">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                      <h2 className="text-xl font-bold">Audience Stats</h2>
+                      <p className="text-sm text-gray-500 mt-1">Top audience dimensions based on users and works.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fetchAudienceStats(10)}
+                      disabled={audienceStatsLoading}
+                      className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {audienceStatsLoading ? "Refreshing..." : "Refresh"}
+                    </button>
+                  </div>
+
+                  {audienceStatsLoading && !audienceStats ? (
+                    <p className="text-gray-500">Loading...</p>
+                  ) : audienceStats ? (
+                    <div className="space-y-6">
+                      <div className="grid md:grid-cols-4 gap-3">
+                        <div className="border rounded-lg p-4">
+                          <p className="text-xs text-gray-500">Total Users</p>
+                          <p className="text-2xl font-bold mt-1">{audienceStats.summary.total_users}</p>
+                        </div>
+                        <div className="border rounded-lg p-4">
+                          <p className="text-xs text-gray-500">Total Works</p>
+                          <p className="text-2xl font-bold mt-1">{audienceStats.summary.total_works}</p>
+                        </div>
+                        <div className="border rounded-lg p-4">
+                          <p className="text-xs text-gray-500">Active Users 7D</p>
+                          <p className="text-2xl font-bold mt-1">{audienceStats.summary.active_users_7d}</p>
+                        </div>
+                        <div className="border rounded-lg p-4">
+                          <p className="text-xs text-gray-500">Works 7D</p>
+                          <p className="text-2xl font-bold mt-1">{audienceStats.summary.works_7d}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid xl:grid-cols-2 gap-4">
+                        {renderAudienceTable("Top Countries", audienceStats.dimensions.countries)}
+                        {renderAudienceTable("Top Regions", audienceStats.dimensions.regions)}
+                        {renderAudienceTable("Top Cities", audienceStats.dimensions.cities)}
+                        {renderAudienceTable("Top Timezones", audienceStats.dimensions.timezones)}
+                        {renderAudienceTable("Top Languages", audienceStats.dimensions.languages)}
+                        {renderAudienceTable("Top ASNs", audienceStats.dimensions.asns)}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500">No stats yet.</p>
+                  )}
+                </div>
+                )}
+
                 {activeAdminPanel === "users" && (
                 <div className="bg-white rounded-xl shadow-sm border p-6">
                   <h2 className="text-xl font-bold mb-4">User Management</h2>
@@ -2399,6 +2600,66 @@ export default function ProfilePage() {
                         <option value={100}>100</option>
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Country</label>
+                      <input
+                        type="text"
+                        value={adminListCountry}
+                        onChange={e => setAdminListCountry(e.target.value)}
+                        placeholder="US"
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Region</label>
+                      <input
+                        type="text"
+                        value={adminListRegionCode}
+                        onChange={e => setAdminListRegionCode(e.target.value)}
+                        placeholder="CA / NY"
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">City</label>
+                      <input
+                        type="text"
+                        value={adminListCity}
+                        onChange={e => setAdminListCity(e.target.value)}
+                        placeholder="San Francisco"
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Timezone</label>
+                      <input
+                        type="text"
+                        value={adminListTimezone}
+                        onChange={e => setAdminListTimezone(e.target.value)}
+                        placeholder="America/Los_Angeles"
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Language</label>
+                      <input
+                        type="text"
+                        value={adminListLanguage}
+                        onChange={e => setAdminListLanguage(e.target.value)}
+                        placeholder="en / zh-CN"
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">ASN</label>
+                      <input
+                        type="text"
+                        value={adminListAsn}
+                        onChange={e => setAdminListAsn(e.target.value)}
+                        placeholder="15169"
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
                     <div className="md:col-span-6 flex gap-2">
                       <button
                         type="submit"
@@ -2414,6 +2675,12 @@ export default function ProfilePage() {
                           setAdminListEmailMatch("fuzzy");
                           setAdminListName("");
                           setAdminListIp("");
+                          setAdminListCountry("");
+                          setAdminListRegionCode("");
+                          setAdminListCity("");
+                          setAdminListTimezone("");
+                          setAdminListLanguage("");
+                          setAdminListAsn("");
                           setAdminUserListPage(1);
                           fetchAdminUserList(1, adminUserListPageSize);
                         }}
@@ -2435,9 +2702,10 @@ export default function ProfilePage() {
                             <th className="px-3 py-2 text-left">Email</th>
                             <th className="px-3 py-2 text-left">Nickname</th>
                             <th className="px-3 py-2 text-left">IP</th>
-                            <th className="px-3 py-2 text-left">Country</th>
+                            <th className="px-3 py-2 text-left">Geo</th>
                             <th className="px-3 py-2 text-left">Language</th>
                             <th className="px-3 py-2 text-left">Fingerprint</th>
+                            <th className="px-3 py-2 text-left">Network</th>
                             <th className="px-3 py-2 text-left">Plan</th>
                             <th className="px-3 py-2 text-left">Status</th>
                             <th className="px-3 py-2 text-left">Registered</th>
@@ -2447,21 +2715,32 @@ export default function ProfilePage() {
                         <tbody>
                           {adminUserListLoading ? (
                             <tr>
-                              <td className="px-3 py-6 text-center text-gray-500" colSpan={10}>Loading...</td>
+                              <td className="px-3 py-6 text-center text-gray-500" colSpan={11}>Loading...</td>
                             </tr>
                           ) : adminUserList.length === 0 ? (
                             <tr>
-                              <td className="px-3 py-6 text-center text-gray-500" colSpan={10}>No users found.</td>
+                              <td className="px-3 py-6 text-center text-gray-500" colSpan={11}>No users found.</td>
                             </tr>
                           ) : adminUserList.map((u) => (
                             <tr key={u.id} className="border-t">
                               <td className="px-3 py-2">{u.email}</td>
                               <td className="px-3 py-2">{u.name || "-"}</td>
                               <td className="px-3 py-2">{u.last_ip || "-"}</td>
-                              <td className="px-3 py-2">{u.country || "-"}</td>
+                              <td className="px-3 py-2">
+                                <div title={formatGeoSummary(u)}>
+                                  <div>{formatGeoSummary(u)}</div>
+                                  <div className="text-xs text-gray-500">{formatGeoMeta(u)}</div>
+                                </div>
+                              </td>
                               <td className="px-3 py-2">{formatLanguageTag(u.preferred_language)}</td>
                               <td className="px-3 py-2 max-w-[160px] truncate" title={u.fingerprint || "-"}>
                                 {u.fingerprint || "-"}
+                              </td>
+                              <td className="px-3 py-2">
+                                <div title={formatNetworkSummary(u)}>
+                                  <div className="truncate max-w-[220px]">{formatNetworkSummary(u)}</div>
+                                  <div className="text-xs text-gray-500">{u.colo ? `Colo ${u.colo}` : "-"}</div>
+                                </div>
                               </td>
                               <td className="px-3 py-2">{u.subscription_display || u.subscription_type || "free"}</td>
                               <td className="px-3 py-2">
@@ -2471,7 +2750,7 @@ export default function ProfilePage() {
                                   <span className="text-green-600">Active</span>
                                 )}
                               </td>
-                              <td className="px-3 py-2">{formatDate(u.created_at)}</td>
+                              <td className="px-3 py-2">{formatDateTime(u.created_at)}</td>
                               <td className="px-3 py-2">
                                 <div className="flex justify-end gap-2">
                                   <button
@@ -2552,19 +2831,29 @@ export default function ProfilePage() {
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Member Since</p>
-                          <p className="font-medium">{formatDate(adminSearchResult.user.created_at)}</p>
+                          <p className="font-medium">{formatDateTime(adminSearchResult.user.created_at)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Last IP</p>
                           <p className="font-medium">{adminSearchResult.user.last_ip || "-"}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-500">Country / Language</p>
-                          <p className="font-medium">{adminSearchResult.user.country || "-"} / {formatLanguageTag(adminSearchResult.user.preferred_language)}</p>
+                          <p className="text-sm text-gray-500">Geo / Language</p>
+                          <p className="font-medium">{formatGeoSummary(adminSearchResult.user)} / {formatLanguageTag(adminSearchResult.user.preferred_language)}</p>
+                          <p className="text-xs text-gray-500 mt-1">{formatGeoMeta(adminSearchResult.user)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Fingerprint</p>
                           <p className="font-mono text-xs break-all">{adminSearchResult.user.fingerprint || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Network</p>
+                          <p className="font-medium break-all">{formatNetworkSummary(adminSearchResult.user)}</p>
+                          <p className="text-xs text-gray-500 mt-1">{adminSearchResult.user.colo ? `Colo ${adminSearchResult.user.colo}` : "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Device</p>
+                          <p className="font-medium">{adminSearchResult.user.device_type || "-"}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Login Status</p>
@@ -2589,6 +2878,14 @@ export default function ProfilePage() {
                             created_at: adminSearchResult.user.created_at,
                             last_ip: adminSearchResult.user.last_ip || null,
                             country: adminSearchResult.user.country || null,
+                            region: adminSearchResult.user.region || null,
+                            region_code: adminSearchResult.user.region_code || null,
+                            city: adminSearchResult.user.city || null,
+                            timezone: adminSearchResult.user.timezone || null,
+                            continent: adminSearchResult.user.continent || null,
+                            colo: adminSearchResult.user.colo || null,
+                            asn: adminSearchResult.user.asn ?? null,
+                            as_organization: adminSearchResult.user.as_organization || null,
                             preferred_language: adminSearchResult.user.preferred_language || null,
                             fingerprint: adminSearchResult.user.fingerprint || null,
                             device_type: adminSearchResult.user.device_type || null,
@@ -2879,6 +3176,14 @@ export default function ProfilePage() {
                                           else newSet.add(work.id);
                                           setAdminSelectedWorks(newSet);
                                         }}
+                                        title={[
+                                          `Geo: ${formatGeoSummary(work)}`,
+                                          `Geo Meta: ${formatGeoMeta(work)}`,
+                                          `Net: ${formatNetworkSummary(work)}`,
+                                          `Colo: ${work.colo || '-'}`,
+                                          `Device: ${work.device_type || '-'}`,
+                                          `IP: ${work.ip || '-'}`,
+                                        ].join('\n')}
                                         className={`relative group rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${adminSelectedWorks.has(work.id) ? 'border-indigo-500' : 'border-transparent'}`}
                                       >
                                         <div className="absolute top-2 left-2 z-10">
@@ -2903,6 +3208,15 @@ export default function ProfilePage() {
                                             <span className={isExpired ? 'text-red-500' : 'text-green-500'}>
                                               {((work as any).expire_at) ? formatDate((work as any).expire_at) : 'Never'}
                                             </span>
+                                          </p>
+                                          <p className="text-[10px] text-gray-500 truncate" title={formatGeoSummary(work)}>
+                                            Geo: {formatGeoSummary(work)}
+                                          </p>
+                                          <p className="text-[10px] text-gray-500 truncate" title={formatNetworkSummary(work)}>
+                                            Net: {formatNetworkSummary(work)}
+                                          </p>
+                                          <p className="text-[10px] text-gray-500 truncate">
+                                            Meta: {[work.device_type || "-", work.timezone || "-", work.colo ? `Colo ${work.colo}` : "-"].join(" / ")}
                                           </p>
                                           <p className="text-[10px] text-gray-400 truncate" title={work.result_url}>URL: {work.result_url}</p>
                                         </div>

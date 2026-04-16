@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.lavieai.net';
+import { authApi } from "@/lib/api-client";
 
 export function LoginModal() {
   const { isLoginModalOpen, closeLoginModal } = useUserStore();
@@ -14,9 +13,12 @@ export function LoginModal() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-    const returnTo = window.location.href;
-    const loginUrl = `${API_BASE}/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`;
-    window.location.href = loginUrl;
+    try {
+      const returnTo = window.location.href;
+      await authApi.googleLogin(returnTo);
+    } catch {
+      setIsLoading(false);
+    }
   };
 
   return (
