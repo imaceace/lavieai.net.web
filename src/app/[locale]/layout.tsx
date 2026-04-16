@@ -44,6 +44,8 @@ export default async function LocaleLayout({
   params: Promise<{ locale?: string }>;
 }) {
   const { locale } = await params;
+  const gaMeasurementId =
+    process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || process.env.GA_MEASUREMENT_ID;
   const resolvedLocale = locale && routing.locales.includes(locale as "en" | "es" | "fr" | "it" | "de") 
     ? locale 
     : routing.defaultLocale;
@@ -71,6 +73,23 @@ export default async function LocaleLayout({
         />
       </head>
       <body className="flex flex-col min-h-screen">
+        {gaMeasurementId ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
+              strategy="afterInteractive"
+            />
+            <Script id="google-analytics" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                window.gtag = gtag;
+                gtag('js', new Date());
+                gtag('config', '${gaMeasurementId}');
+              `}
+            </Script>
+          </>
+        ) : null}
         <NextIntlClientProvider messages={messages}>
           <Header />
           <main className="flex-1">{children}</main>

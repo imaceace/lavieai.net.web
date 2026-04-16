@@ -38,6 +38,9 @@
 		// see https://opennext.js.org/cloudflare/howtos/image
 		"binding": "IMAGES"
 	},
+	"vars": {
+		"NEXT_PUBLIC_GA_MEASUREMENT_ID": "G-L7Y2349054"
+	},
 	 "observability": {
 			"logs": {
 			"enabled": true,
