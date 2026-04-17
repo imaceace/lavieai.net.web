@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.lavieai.net";
+import { apiFetch } from "@/lib/api-base";
 
 interface ApiResponse<T> {
   success: boolean;
@@ -14,7 +14,7 @@ async function fetchApi<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const response = await apiFetch(endpoint, {
       ...options,
       headers: {
         "Content-Type": "application/json",

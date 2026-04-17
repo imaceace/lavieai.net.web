@@ -1,8 +1,7 @@
 // API Client for lavieai.net
 
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.lavieai.net';
+import { apiFetch, apiUrl } from '@/lib/api-base';
 
 let fpPromise: Promise<string> | null = null;
 
@@ -79,6 +78,8 @@ export interface UseCasePricingPreview {
   task_type: string;
   points_cost: number;
   source: 'use_case_pricing' | 'fallback';
+  trial_audience?: 'visitor' | 'registered_free' | 'subscriber' | null;
+  login_required_for_trial?: boolean;
   trial: {
     eligible: boolean;
     periodType: 'daily' | 'weekly' | string;
@@ -102,7 +103,7 @@ interface SubscriptionPlan {
 export const authApi = {
   googleLogin: async (returnTo?: string) => {
     const fingerprint = await getFingerprint();
-    const target = new URL(`${API_BASE}/api/auth/google`);
+    const target = new URL(apiUrl('/api/auth/google'));
     if (returnTo) {
       target.searchParams.set('returnTo', returnTo);
     }
@@ -114,7 +115,7 @@ export const authApi = {
 
   logout: async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/logout`, {
+      const res = await apiFetch(`/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -126,7 +127,7 @@ export const authApi = {
 
   getMe: async (): Promise<User | null> => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, {
+      const res = await apiFetch(`/api/auth/me`, {
         credentials: 'include',
       });
       // Important: don't clear user if it's a server/network error
@@ -167,7 +168,7 @@ export const authApi = {
 // Whitelist API
 export const whitelistApi = {
   join: async (email: string) => {
-    const res = await fetch(`${API_BASE}/api/whitelist/join`, {
+    const res = await apiFetch(`/api/whitelist/join`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
@@ -176,14 +177,14 @@ export const whitelistApi = {
     return res.json();
   },
   getList: async () => {
-    const res = await fetch(`${API_BASE}/api/whitelist`, {
+    const res = await apiFetch(`/api/whitelist`, {
       method: "GET",
       credentials: "include",
     });
     return res.json();
   },
   updateStatus: async (email: string, status: "pending" | "approved" | "rejected") => {
-    const res = await fetch(`${API_BASE}/api/whitelist/update`, {
+    const res = await apiFetch(`/api/whitelist/update`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, status }),
@@ -196,7 +197,7 @@ export const whitelistApi = {
 // Admin API
 export const adminApi = {
   getUserInfo: async (email: string) => {
-    const res = await fetch(`${API_BASE}/api/admin/user/info?email=${encodeURIComponent(email)}`, {
+    const res = await apiFetch(`/api/admin/user/info?email=${encodeURIComponent(email)}`, {
       method: "GET",
       credentials: "include",
     });
@@ -229,7 +230,7 @@ export const adminApi = {
     if (params?.asn) q.set('asn', params.asn);
     if (params?.page) q.set('page', String(params.page));
     if (params?.pageSize) q.set('page_size', String(params.pageSize));
-    const res = await fetch(`${API_BASE}/api/admin/users?${q.toString()}`, {
+    const res = await apiFetch(`/api/admin/users?${q.toString()}`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -238,14 +239,14 @@ export const adminApi = {
   getAudienceStats: async (limit = 10) => {
     const q = new URLSearchParams();
     q.set('limit', String(limit));
-    const res = await fetch(`${API_BASE}/api/admin/audience-stats?${q.toString()}`, {
+    const res = await apiFetch(`/api/admin/audience-stats?${q.toString()}`, {
       method: 'GET',
       credentials: 'include',
     });
     return res.json();
   },
   setUserLoginStatus: async (userId: string, disabled: boolean, reason?: string) => {
-    const res = await fetch(`${API_BASE}/api/admin/users/${encodeURIComponent(userId)}/login-status`, {
+    const res = await apiFetch(`/api/admin/users/${encodeURIComponent(userId)}/login-status`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -254,21 +255,21 @@ export const adminApi = {
     return res.json();
   },
   getTransactions: async (userId: string, page = 1, limit = 20) => {
-    const res = await fetch(`${API_BASE}/api/admin/user/transactions?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
+    const res = await apiFetch(`/api/admin/user/transactions?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
       method: "GET",
       credentials: "include",
     });
     return res.json();
   },
   getOrders: async (userId: string, page = 1, limit = 20) => {
-    const res = await fetch(`${API_BASE}/api/admin/user/orders?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
+    const res = await apiFetch(`/api/admin/user/orders?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
       method: "GET",
       credentials: "include",
     });
     return res.json();
   },
   getWorks: async (userId: string, page = 1, limit = 20) => {
-    const res = await fetch(`${API_BASE}/api/admin/user/works?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
+    const res = await apiFetch(`/api/admin/user/works?userId=${encodeURIComponent(userId)}&page=${page}&limit=${limit}`, {
       method: "GET",
       credentials: "include",
     });
@@ -291,14 +292,14 @@ export const adminApi = {
     if (params?.expiredOnly) q.set('expired_only', 'true');
     if (params?.page) q.set('page', String(params.page));
     if (params?.pageSize) q.set('page_size', String(params.pageSize));
-    const res = await fetch(`${API_BASE}/api/admin/uploads?${q.toString()}`, {
+    const res = await apiFetch(`/api/admin/uploads?${q.toString()}`, {
       method: 'GET',
       credentials: 'include',
     });
     return res.json();
   },
   extendUploads: async (uploadIds: string[], extendDays: number): Promise<{ success: boolean; data?: { updated: number; extend_days: number }; error?: { message?: string } }> => {
-    const res = await fetch(`${API_BASE}/api/admin/uploads/extend`, {
+    const res = await apiFetch(`/api/admin/uploads/extend`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -307,7 +308,7 @@ export const adminApi = {
     return res.json();
   },
   expireUploads: async (uploadIds: string[]): Promise<{ success: boolean; data?: { updated: number }; error?: { message?: string } }> => {
-    const res = await fetch(`${API_BASE}/api/admin/uploads/expire`, {
+    const res = await apiFetch(`/api/admin/uploads/expire`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -327,7 +328,7 @@ export const adminApi = {
     };
     error?: { message?: string };
   }> => {
-    const res = await fetch(`${API_BASE}/api/admin/uploads/cleanup`, {
+    const res = await apiFetch(`/api/admin/uploads/cleanup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -337,7 +338,7 @@ export const adminApi = {
   },
   extendWorks: async (workIds: string[], extendDays: number): Promise<{ success: boolean; message?: string }> => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/works/extend`, {
+      const res = await apiFetch(`/api/admin/works/extend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -351,7 +352,7 @@ export const adminApi = {
 
   grantCredits: async (userId: string, amount: number, reason: string, expiresInDays: number): Promise<{ success: boolean; data?: { newBalance: number }; error?: { message: string } }> => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/credits/grant`, {
+      const res = await apiFetch(`/api/admin/credits/grant`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -371,7 +372,7 @@ export const adminApi = {
     if (typeof params?.pointUsdRate === 'number') q.set('point_usd_rate', String(params.pointUsdRate));
     if (params?.subscriptionId) q.set('subscription_id', params.subscriptionId);
     if (params?.orderId) q.set('order_id', params.orderId);
-    const res = await fetch(`${API_BASE}/api/admin/subscription/refund/preview?${q.toString()}`, {
+    const res = await apiFetch(`/api/admin/subscription/refund/preview?${q.toString()}`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -383,7 +384,7 @@ export const adminApi = {
     if (params.email) q.set('email', params.email);
     if (params.paypalSubscriptionId) q.set('paypal_subscription_id', params.paypalSubscriptionId);
     if (params.paypalTransactionId) q.set('paypal_transaction_id', params.paypalTransactionId);
-    const res = await fetch(`${API_BASE}/api/admin/subscription/refund/lookup?${q.toString()}`, {
+    const res = await apiFetch(`/api/admin/subscription/refund/lookup?${q.toString()}`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -402,7 +403,7 @@ export const adminApi = {
     pointUsdRate: number;
     reason?: string;
   }) => {
-    const res = await fetch(`${API_BASE}/api/admin/subscription/refund/execute`, {
+    const res = await apiFetch(`/api/admin/subscription/refund/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -415,7 +416,7 @@ export const adminApi = {
     const query = new URLSearchParams();
     if (params?.task_type) query.set('task_type', params.task_type);
     if (params?.tier) query.set('tier', params.tier);
-    const res = await fetch(`${API_BASE}/api/admin/routing/models?${query.toString()}`, {
+    const res = await apiFetch(`/api/admin/routing/models?${query.toString()}`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -429,7 +430,7 @@ export const adminApi = {
     if (params?.tier) query.set('tier', params.tier);
     if (params?.model) query.set('model', params.model);
     if (params?.include_inactive) query.set('include_inactive', 'true');
-    const res = await fetch(`${API_BASE}/api/admin/routing/policies?${query.toString()}`, {
+    const res = await apiFetch(`/api/admin/routing/policies?${query.toString()}`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -450,7 +451,7 @@ export const adminApi = {
     weight_speed: number;
     is_active: 0 | 1;
   }) => {
-    const res = await fetch(`${API_BASE}/api/admin/routing/policies/upsert`, {
+    const res = await apiFetch(`/api/admin/routing/policies/upsert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -460,7 +461,7 @@ export const adminApi = {
   },
 
   toggleRoutingPolicy: async (id: string, is_active: 0 | 1) => {
-    const res = await fetch(`${API_BASE}/api/admin/routing/policies/toggle`, {
+    const res = await apiFetch(`/api/admin/routing/policies/toggle`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -470,7 +471,7 @@ export const adminApi = {
   },
 
   previewRouting: async (payload: { use_case: string; tier: 'basic' | 'pro' | 'max' | 'ultra'; width?: number; height?: number }) => {
-    const res = await fetch(`${API_BASE}/api/admin/routing/preview`, {
+    const res = await apiFetch(`/api/admin/routing/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -485,7 +486,7 @@ export const adminApi = {
     if (params?.task_type) query.set('task_type', params.task_type);
     if (params?.tier) query.set('tier', params.tier);
     if (params?.include_inactive) query.set('include_inactive', 'true');
-    const res = await fetch(`${API_BASE}/api/admin/pricing/policies?${query.toString()}`, {
+    const res = await apiFetch(`/api/admin/pricing/policies?${query.toString()}`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -493,7 +494,7 @@ export const adminApi = {
   },
 
   upsertPricingPolicy: async (payload: any) => {
-    const res = await fetch(`${API_BASE}/api/admin/pricing/policies/upsert`, {
+    const res = await apiFetch(`/api/admin/pricing/policies/upsert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -503,7 +504,7 @@ export const adminApi = {
   },
 
   togglePricingPolicy: async (id: string, is_active: 0 | 1) => {
-    const res = await fetch(`${API_BASE}/api/admin/pricing/policies/toggle`, {
+    const res = await apiFetch(`/api/admin/pricing/policies/toggle`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -513,7 +514,7 @@ export const adminApi = {
   },
 
   getCacheKeys: async () => {
-    const res = await fetch(`${API_BASE}/api/admin/cache/keys`, {
+    const res = await apiFetch(`/api/admin/cache/keys`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -521,7 +522,7 @@ export const adminApi = {
   },
 
   purgeCache: async (payload: { scope: 'all' | 'smart-routing' | 'keys'; keys?: string[] }) => {
-    const res = await fetch(`${API_BASE}/api/admin/cache/purge`, {
+    const res = await apiFetch(`/api/admin/cache/purge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -543,7 +544,7 @@ export const generateApi = {
       headers['X-Turnstile-Token'] = turnstileToken;
     }
 
-    const res = await fetch(`${API_BASE}/api/generate/text-to-image`, {
+    const res = await apiFetch(`/api/generate/text-to-image`, {
       method: 'POST',
       headers,
       credentials: 'include',
@@ -614,7 +615,7 @@ export const generateApi = {
       headers['X-Turnstile-Token'] = turnstileToken;
     }
 
-    const res = await fetch(`${API_BASE}/api/generate/image-to-image`, {
+    const res = await apiFetch(`/api/generate/image-to-image`, {
       method: 'POST',
       credentials: 'include',
       headers,
@@ -691,7 +692,7 @@ export const generateApi = {
     };
     if (turnstileToken) headers['X-Turnstile-Token'] = turnstileToken;
 
-    const res = await fetch(`${API_BASE}/api/generate/image-to-image/use-case`, {
+    const res = await apiFetch(`/api/generate/image-to-image/use-case`, {
       method: 'POST',
       credentials: 'include',
       headers,
@@ -749,7 +750,7 @@ export const generateApi = {
     if (typeof params.height === 'number') query.set('height', String(params.height));
     query.set('fast_mode', params.fastMode ? 'true' : 'false');
 
-    const res = await fetch(`${API_BASE}/api/generate/use-case-pricing-preview?${query.toString()}`, {
+    const res = await apiFetch(`/api/generate/use-case-pricing-preview?${query.toString()}`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -774,7 +775,7 @@ export const generateApi = {
     items: Array<{ useCase: string; width?: number; height?: number; taskType?: string }>;
   }): Promise<{ items: UseCasePricingPreview[] }> => {
     const fp = await getFingerprint();
-    const res = await fetch(`${API_BASE}/api/generate/use-case-pricing-preview/batch`, {
+    const res = await apiFetch(`/api/generate/use-case-pricing-preview/batch`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -805,7 +806,7 @@ export const generateApi = {
 
   getStatus: async (taskId: string): Promise<Task> => {
     const fingerprint = await getFingerprint();
-    const res = await fetch(`${API_BASE}/api/generate/status/${taskId}`, {
+    const res = await apiFetch(`/api/generate/status/${taskId}`, {
       credentials: 'include',
       headers: {
         'X-Fingerprint': fingerprint,
@@ -820,9 +821,40 @@ export const generateApi = {
 
 // User API
 export const userApi = {
+  getHistory: async (): Promise<Array<{
+    id: string;
+    type: string;
+    prompt: string;
+    result_url: string;
+    thumbnail_url?: string;
+    status: string;
+    created_at: number;
+    points_cost: number;
+    is_recommended?: number;
+    ip?: string | null;
+    country?: string | null;
+    region?: string | null;
+    region_code?: string | null;
+    city?: string | null;
+    timezone?: string | null;
+    continent?: string | null;
+    colo?: string | null;
+  }>> => {
+    try {
+      const res = await apiFetch(`/api/user/history`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return [];
+      const payload = await res.json();
+      return payload.data || [];
+    } catch {
+      return [];
+    }
+  },
+
   getPoints: async (): Promise<{ credits: number } | null> => {
     try {
-      const res = await fetch(`${API_BASE}/api/user/points`, {
+      const res = await apiFetch(`/api/user/points`, {
         credentials: 'include',
       });
       if (!res.ok) return null;
@@ -832,15 +864,51 @@ export const userApi = {
     }
   },
 
-  getCreditHistory: async (): Promise<{ data: Array<{ id: number; user_id: string; change_amount: number; action_type: string; balance_after: number; related_id: string | null; created_at: string }>; pagination: any }> => {
+  getCreditHistory: async (params?: {
+    from?: string;
+    to?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<{
+    data: Array<{ id: number; user_id: string; change_amount: number; action_type: string; balance_after: number; related_id: string | null; created_at: string }>;
+    summary: { records: number; total_increase: number; total_decrease: number; net_change: number };
+    filters: { from: string | null; to: string | null };
+    pagination: { page: number; page_size: number; total: number; total_pages: number; hasMore: boolean; limit?: number; offset?: number };
+  }> => {
     try {
-      const res = await fetch(`${API_BASE}/api/user/transactions`, {
+      const query = new URLSearchParams();
+      if (params?.from) query.set('from', params.from);
+      if (params?.to) query.set('to', params.to);
+      if (params?.page) query.set('page', String(params.page));
+      if (params?.pageSize) query.set('page_size', String(params.pageSize));
+      const res = await apiFetch(`/api/user/transactions?${query.toString()}`, {
         credentials: 'include',
       });
-      if (!res.ok) return { data: [], pagination: { total: 0 } };
-      return res.json();
+      if (!res.ok) {
+        return {
+          data: [],
+          summary: { records: 0, total_increase: 0, total_decrease: 0, net_change: 0 },
+          filters: { from: params?.from || null, to: params?.to || null },
+          pagination: { page: params?.page || 1, page_size: params?.pageSize || 20, total: 0, total_pages: 1, hasMore: false },
+        };
+      }
+      const payload = await res.json();
+      if (!payload?.success) {
+        return {
+          data: [],
+          summary: { records: 0, total_increase: 0, total_decrease: 0, net_change: 0 },
+          filters: { from: params?.from || null, to: params?.to || null },
+          pagination: { page: params?.page || 1, page_size: params?.pageSize || 20, total: 0, total_pages: 1, hasMore: false },
+        };
+      }
+      return payload;
     } catch {
-      return { data: [], pagination: { total: 0 } };
+      return {
+        data: [],
+        summary: { records: 0, total_increase: 0, total_decrease: 0, net_change: 0 },
+        filters: { from: params?.from || null, to: params?.to || null },
+        pagination: { page: params?.page || 1, page_size: params?.pageSize || 20, total: 0, total_pages: 1, hasMore: false },
+      };
     }
   },
 
@@ -848,7 +916,7 @@ export const userApi = {
     try {
       const params = new URLSearchParams();
       if (type) params.set('type', type);
-      const res = await fetch(`${API_BASE}/api/user/orders?${params}`, {
+      const res = await apiFetch(`/api/user/orders?${params}`, {
         credentials: 'include',
       });
       if (!res.ok) return { data: [], pagination: { total: 0 } };
@@ -860,7 +928,7 @@ export const userApi = {
 
   getSubscriptions: async (): Promise<Array<{ id: string; plan: string; type: string; amount: number; currency: string; status: string; started_at: number; expire_at: number; created_at: number }>> => {
     try {
-      const res = await fetch(`${API_BASE}/api/user/subscriptions`, {
+      const res = await apiFetch(`/api/user/subscriptions`, {
         credentials: 'include',
       });
       if (!res.ok) return [];
@@ -881,7 +949,7 @@ export const userApi = {
       if (params?.limit) q.set('limit', String(params.limit));
       if (params?.offset) q.set('offset', String(params.offset));
       if (params?.unreadOnly) q.set('unread_only', '1');
-      const res = await fetch(`${API_BASE}/api/user/messages?${q.toString()}`, {
+      const res = await apiFetch(`/api/user/messages?${q.toString()}`, {
         credentials: 'include',
       });
       if (!res.ok) return { data: [], unread: 0, pagination: { limit: params?.limit || 20, offset: params?.offset || 0, total: 0, hasMore: false } };
@@ -896,7 +964,7 @@ export const userApi = {
 
   markMessagesRead: async (params: { ids?: string[]; readAll?: boolean }): Promise<{ updated: number }> => {
     try {
-      const res = await fetch(`${API_BASE}/api/user/messages/read`, {
+      const res = await apiFetch(`/api/user/messages/read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -915,7 +983,7 @@ export const userApi = {
 
   updatePublicDefault: async (isPublicDefault: number): Promise<boolean> => {
     try {
-      const res = await fetch(`${API_BASE}/api/user/public-default`, {
+      const res = await apiFetch(`/api/user/public-default`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -929,7 +997,7 @@ export const userApi = {
 
   updateWorksRecommended: async (workIds: string[], isRecommended: number): Promise<boolean> => {
     try {
-      const res = await fetch(`${API_BASE}/api/user/works/recommended`, {
+      const res = await apiFetch(`/api/user/works/recommended`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -944,9 +1012,23 @@ export const userApi = {
 
 // Credits API
 export const creditsApi = {
-  claimDaily: async (): Promise<{ success: boolean; credits: number }> => {
+  getDailyStatus: async (): Promise<{ canClaim: boolean }> => {
     try {
-      const res = await fetch(`${API_BASE}/api/credits/daily`, {
+      const res = await apiFetch(`/api/credits/daily`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!res.ok) return { canClaim: false };
+      const data = await res.json();
+      return { canClaim: data.data?.can_claim === true };
+    } catch {
+      return { canClaim: false };
+    }
+  },
+
+  claimDaily: async (): Promise<{ success: boolean; data?: { new_balance?: number }; message?: string; error?: { message?: string } }> => {
+    try {
+      const res = await apiFetch(`/api/credits/daily`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -962,11 +1044,37 @@ export const creditsApi = {
 export const subscriptionApi = {
   getPlans: async (): Promise<SubscriptionPlan[]> => {
     try {
-      const res = await fetch(`${API_BASE}/api/subscription/plans`);
+      const res = await apiFetch(`/api/subscription/plans`);
       if (!res.ok) return [];
       return res.json();
     } catch {
       return [];
+    }
+  },
+
+  createCheckout: async (plan: 'creator' | 'plus' | 'studio', type: 'monthly' | 'yearly'): Promise<string> => {
+    const res = await apiFetch(`/api/subscription/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ plan, type }),
+    });
+    const payload = await res.json();
+    if (!res.ok || !payload?.success || !payload?.data?.checkoutUrl) {
+      throw new Error(payload?.error?.message || 'Failed to create checkout');
+    }
+    return payload.data.checkoutUrl as string;
+  },
+
+  recordUpgradeConsent: async (payload: { old_plan?: string; new_plan: string; consent_text: string }): Promise<void> => {
+    const res = await apiFetch(`/api/subscription/upgrade-consent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to record consent');
     }
   },
 };
@@ -974,7 +1082,7 @@ export const subscriptionApi = {
 // Payment API
 export const paymentApi = {
   createOrder: async (planId: string, type: 'monthly' | 'yearly'): Promise<{ approvalUrl: string; orderId: string }> => {
-    const res = await fetch(`${API_BASE}/api/payment/create`, {
+    const res = await apiFetch(`/api/payment/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -985,7 +1093,7 @@ export const paymentApi = {
   },
 
   createCreditPackOrder: async (packId: string): Promise<{ approvalUrl: string; orderId: string }> => {
-    const res = await fetch(`${API_BASE}/api/payment/create`, {
+    const res = await apiFetch(`/api/payment/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -1005,7 +1113,7 @@ export const uploadApi = {
 
     const fp = await getFingerprint();
 
-    const res = await fetch(`${API_BASE}/api/upload`, {
+    const res = await apiFetch(`/api/upload`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -1039,7 +1147,7 @@ export const galleryApi = {
       if (params?.sort) searchParams.set('sort', params.sort);
       if (params?.exclude) searchParams.set('exclude', params.exclude);
 
-      const res = await fetch(`${API_BASE}/api/gallery?${searchParams}`, {
+      const res = await apiFetch(`/api/gallery?${searchParams}`, {
         credentials: 'include',
       });
       if (!res.ok) return { images: [] };
@@ -1052,7 +1160,7 @@ export const galleryApi = {
 
   getWork: async (id: string): Promise<any> => {
     try {
-      const res = await fetch(`${API_BASE}/api/gallery/${id}`, {
+      const res = await apiFetch(`/api/gallery/${id}`, {
         credentials: 'include',
       });
       if (!res.ok) return null;
@@ -1071,7 +1179,7 @@ export const galleryApi = {
       if (params?.style) query.set('style', params.style);
       if (params?.sort) query.set('sort', params.sort);
 
-      const res = await fetch(`${API_BASE}/api/gallery?${query}`);
+      const res = await apiFetch(`/api/gallery?${query}`);
       if (!res.ok) return { images: [] };
       const data = await res.json();
       return { images: data.success ? data.data : [] };
@@ -1089,7 +1197,7 @@ export const configApi = {
     points_config: { daily_bonus: number; generation_cost: { basic: number; pro: number; ultra: number } };
   }> => {
     try {
-      const res = await fetch(`${API_BASE}/api/config`);
+      const res = await apiFetch(`/api/config`);
       if (!res.ok) throw new Error('Failed to get config');
       return res.json();
     } catch {
@@ -1109,7 +1217,7 @@ export const configApi = {
     ratios: Array<{ id: string; label: string; width: number; height: number }>;
   } | null> => {
     try {
-      const res = await fetch(`${API_BASE}/api/config/generation-options`);
+      const res = await apiFetch(`/api/config/generation-options`);
       if (!res.ok) return null;
       const data = await res.json();
       return data.success ? data.data : null;

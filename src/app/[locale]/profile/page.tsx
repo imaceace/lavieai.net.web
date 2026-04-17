@@ -8,7 +8,7 @@ import { authApi, userApi } from "@/lib/api-client";
 import { useToast } from "@/hooks/useToast";
 import { UpgradeModal } from "@/components/auth/UpgradeModal";
 
-type Tab = "overview" | "orders" | "history" | "messages" | "admin";
+type Tab = "overview" | "credits" | "orders" | "history" | "messages" | "admin";
 type AdminPanelTab = "whitelist" | "routing" | "pricing" | "cache" | "refunds" | "users" | "audience";
 
 interface Order {
@@ -46,6 +46,31 @@ interface UserMessage {
   read_ip?: string | null;
   read_mode?: string | null;
   created_at: number;
+}
+
+interface CreditLedgerRow {
+  id: number;
+  user_id: string;
+  change_amount: number;
+  action_type: string;
+  balance_after: number;
+  related_id: string | null;
+  created_at: string;
+}
+
+interface CreditHistorySummary {
+  records: number;
+  total_increase: number;
+  total_decrease: number;
+  net_change: number;
+}
+
+interface CreditHistoryPagination {
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+  hasMore: boolean;
 }
 
 interface Work {
@@ -216,15 +241,15 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function formatDate(timestamp: number): string {
-  return new Date(timestamp * 1000).toLocaleDateString("en-US", {
+  return toDisplayDate(timestamp).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 }
 
-function formatDateTime(timestamp: number): string {
-  return new Date(timestamp * 1000).toLocaleString("en-US", {
+function formatDateTime(timestamp: number | string): string {
+  return toDisplayDate(timestamp).toLocaleString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -361,6 +386,36 @@ function getOrderCreditsDisplay(order: Order): string {
   return order.points > 0 ? `+${order.points}` : "-";
 }
 
+function toDisplayDate(value: number | string): Date {
+  if (typeof value === "number") {
+    return new Date(value * 1000);
+  }
+  return new Date(value);
+}
+
+function formatSignedCredits(value: number): string {
+  if (value > 0) return `+${value}`;
+  if (value < 0) return `${value}`;
+  return "0";
+}
+
+function isIsoDateInput(value: string): boolean {
+  if (!value) return true;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function getCreditActionLabel(actionType: string): string {
+  const labels: Record<string, string> = {
+    daily_gift: "Daily Gift",
+    share_reward: "Share Reward",
+    image_gen: "Image Generation",
+    purchase: "Purchase / Grant",
+    refund: "Refund / Clawback",
+    login_bonus: "Login Bonus",
+  };
+  return labels[actionType] || actionType.replace(/_/g, " ");
+}
+
 export default function ProfilePage() {
   const { addToast } = useToast();
   const { user, isLoggedIn: storeIsLoggedIn, isLoading: storeLoading, setUser } = useUserStore();
@@ -369,6 +424,24 @@ export default function ProfilePage() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [works, setWorks] = useState<Work[]>([]);
   const [messages, setMessages] = useState<UserMessage[]>([]);
+  const [creditHistory, setCreditHistory] = useState<CreditLedgerRow[]>([]);
+  const [creditSummary, setCreditSummary] = useState<CreditHistorySummary>({
+    records: 0,
+    total_increase: 0,
+    total_decrease: 0,
+    net_change: 0,
+  });
+  const [creditPagination, setCreditPagination] = useState<CreditHistoryPagination>({
+    page: 1,
+    page_size: 20,
+    total: 0,
+    total_pages: 1,
+    hasMore: false,
+  });
+  const [loadingCreditHistory, setLoadingCreditHistory] = useState(false);
+  const [creditDateFrom, setCreditDateFrom] = useState("");
+  const [creditDateTo, setCreditDateTo] = useState("");
+  const [creditPage, setCreditPage] = useState(1);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messagesUnread, setMessagesUnread] = useState(0);
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -480,10 +553,57 @@ export default function ProfilePage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab === "overview" || tab === "orders" || tab === "history" || tab === "messages" || tab === "admin") {
+    if (tab === "overview" || tab === "credits" || tab === "orders" || tab === "history" || tab === "messages" || tab === "admin") {
       setActiveTab(tab);
     }
   }, []);
+
+  const fetchCreditHistory = async (page: number = creditPage, from: string = creditDateFrom, to: string = creditDateTo) => {
+    setLoadingCreditHistory(true);
+    try {
+      const res = await userApi.getCreditHistory({
+        page,
+        pageSize: creditPagination.page_size,
+        from: from || undefined,
+        to: to || undefined,
+      });
+      setCreditHistory(res.data || []);
+      setCreditSummary(res.summary || {
+        records: 0,
+        total_increase: 0,
+        total_decrease: 0,
+        net_change: 0,
+      });
+      setCreditPagination(res.pagination || {
+        page,
+        page_size: 20,
+        total: 0,
+        total_pages: 1,
+        hasMore: false,
+      });
+    } finally {
+      setLoadingCreditHistory(false);
+    }
+  };
+
+  const handleSearchCreditHistory = async (page: number, from: string, to: string) => {
+    if (!isIsoDateInput(from) || !isIsoDateInput(to)) {
+      addToast("Date format must be YYYY-MM-DD", "error");
+      return;
+    }
+    if (from && to && from > to) {
+      addToast("From date must be earlier than or equal to To date", "error");
+      return;
+    }
+    setCreditPage(page);
+    await fetchCreditHistory(page, from, to);
+  };
+
+  useEffect(() => {
+    if (activeTab === "credits") {
+      fetchCreditHistory(creditPage);
+    }
+  }, [activeTab, creditPage]);
 
   useEffect(() => {
     if (activeTab === "orders" && orders.length === 0) {
@@ -508,12 +628,9 @@ export default function ProfilePage() {
   useEffect(() => {
     if (activeTab === "history" && works.length === 0) {
       setLoadingWorks(true);
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api.lavieai.net'}/api/user/history`, {
-        credentials: 'include',
-      })
-        .then((r) => r.json())
-        .then((res) => {
-          setWorks(res.data || []);
+      userApi.getHistory()
+        .then((items) => {
+          setWorks(items);
         })
         .catch(() => setWorks([]))
         .finally(() => setLoadingWorks(false));
@@ -1202,6 +1319,7 @@ export default function ProfilePage() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
+    { id: "credits", label: "Credits" },
     { id: "orders", label: "Orders" },
     { id: "history", label: "Gallery" },
     { id: "messages", label: messagesUnread > 0 ? `Messages (${messagesUnread})` : "Messages" },
@@ -1393,6 +1511,144 @@ export default function ProfilePage() {
                 ) : !activeSubscription && (
                   <div className="text-center py-8 text-gray-400">
                     No active subscription. <Link href="/pricing" className="text-indigo-600 hover:underline">Upgrade now</Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "credits" && (
+              <div className="space-y-6">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <h3 className="font-semibold">Credit History</h3>
+                    <p className="text-sm text-gray-500">Track credit increases and deductions with date filters and pagination.</p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">From</label>
+                      <input
+                        type="text"
+                        value={creditDateFrom}
+                        onChange={(e) => setCreditDateFrom(e.target.value)}
+                        placeholder="YYYY-MM-DD"
+                        inputMode="numeric"
+                        className="px-3 py-2 border rounded-lg text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">To</label>
+                      <input
+                        type="text"
+                        value={creditDateTo}
+                        onChange={(e) => setCreditDateTo(e.target.value)}
+                        placeholder="YYYY-MM-DD"
+                        inputMode="numeric"
+                        className="px-3 py-2 border rounded-lg text-sm"
+                      />
+                    </div>
+                    <button
+                      onClick={() => void handleSearchCreditHistory(1, creditDateFrom, creditDateTo)}
+                      className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700"
+                    >
+                      Search
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCreditDateFrom("");
+                        setCreditDateTo("");
+                        void handleSearchCreditHistory(1, "", "");
+                      }}
+                      className="px-4 py-2 border border-gray-300 text-sm rounded-lg hover:bg-gray-50"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500 -mt-1">Use `YYYY-MM-DD` format. Native browser date localization is intentionally avoided here.</div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="text-xs text-gray-500">Records</div>
+                    <div className="mt-2 text-2xl font-semibold text-gray-900">{creditSummary.records}</div>
+                  </div>
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="text-xs text-gray-500">Total Added</div>
+                    <div className="mt-2 text-2xl font-semibold text-green-600">{formatSignedCredits(creditSummary.total_increase)}</div>
+                  </div>
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="text-xs text-gray-500">Total Deducted</div>
+                    <div className="mt-2 text-2xl font-semibold text-red-600">-{creditSummary.total_decrease}</div>
+                  </div>
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="text-xs text-gray-500">Net Change</div>
+                    <div className={`mt-2 text-2xl font-semibold ${creditSummary.net_change >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {formatSignedCredits(creditSummary.net_change)}
+                    </div>
+                  </div>
+                </div>
+
+                {loadingCreditHistory ? (
+                  <div className="text-center py-8 text-gray-400">Loading credit history...</div>
+                ) : creditHistory.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 border rounded-xl bg-white">
+                    No credit history found for the selected range.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="overflow-x-auto rounded-xl border bg-white">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-gray-500 bg-gray-50">
+                            <th className="px-4 py-3 font-medium">Date</th>
+                            <th className="px-4 py-3 font-medium">Action</th>
+                            <th className="px-4 py-3 font-medium">Change</th>
+                            <th className="px-4 py-3 font-medium">Balance After</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {creditHistory.map((item) => (
+                            <tr key={item.id} className="border-b last:border-0">
+                              <td className="px-4 py-3 whitespace-nowrap">{formatDateTime(item.created_at)}</td>
+                              <td className="px-4 py-3 capitalize">{getCreditActionLabel(item.action_type)}</td>
+                              <td className={`px-4 py-3 font-medium ${item.change_amount >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                {formatSignedCredits(item.change_amount)}
+                              </td>
+                              <td className="px-4 py-3">{item.balance_after}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-sm text-gray-500">
+                        Page {creditPagination.page} / {Math.max(creditPagination.total_pages, 1)} · {creditPagination.total} records
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCreditPage((prev) => Math.max(1, prev - 1))}
+                          disabled={creditPagination.page <= 1 || loadingCreditHistory}
+                          className={`px-4 py-2 text-sm rounded-lg border ${
+                            creditPagination.page <= 1 || loadingCreditHistory
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "bg-white hover:bg-gray-50"
+                          }`}
+                        >
+                          Previous
+                        </button>
+                        <button
+                          onClick={() => setCreditPage((prev) => Math.min(creditPagination.total_pages, prev + 1))}
+                          disabled={!creditPagination.hasMore || loadingCreditHistory}
+                          className={`px-4 py-2 text-sm rounded-lg border ${
+                            !creditPagination.hasMore || loadingCreditHistory
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "bg-white hover:bg-gray-50"
+                          }`}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

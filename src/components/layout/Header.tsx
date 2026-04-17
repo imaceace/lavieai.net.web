@@ -6,9 +6,9 @@ import { useTranslations } from "next-intl";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useState, useEffect, useRef } from "react";
 import { useUserStore } from "@/stores/userStore";
-import { authApi } from "@/lib/api-client";
+import { authApi, creditsApi } from "@/lib/api-client";
+import { apiUrl } from "@/lib/api-base";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.lavieai.net';
 const SUPPORTED_LOCALES = new Set(["en", "de", "es", "fr", "it"]);
 
 export function Header() {
@@ -91,12 +91,12 @@ export function Header() {
       const planId = params.get('plan_id');
       const token = params.get('token');
       const baToken = params.get('ba_token');
-      if (!transactionId || !subscriptionId) return;
+      if (!transactionId && !subscriptionId && !token) return;
 
       try {
-        const callbackUrl = new URL(`${API_BASE}/api/subscription/paypal/callback`);
-        callbackUrl.searchParams.set('transaction_id', transactionId);
-        callbackUrl.searchParams.set('subscription_id', subscriptionId);
+        const callbackUrl = new URL(apiUrl('/api/subscription/paypal/callback'));
+        if (transactionId) callbackUrl.searchParams.set('transaction_id', transactionId);
+        if (subscriptionId) callbackUrl.searchParams.set('subscription_id', subscriptionId);
         if (planId) callbackUrl.searchParams.set('plan_id', planId);
         if (token) callbackUrl.searchParams.set('token', token);
         if (baToken) callbackUrl.searchParams.set('ba_token', baToken);
@@ -160,12 +160,8 @@ export function Header() {
 
   const checkDailyBonus = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/credits/daily`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-      const data = await res.json();
-      setCanClaimDaily(data.data?.can_claim === true);
+      const data = await creditsApi.getDailyStatus();
+      setCanClaimDaily(data.canClaim);
     } catch {
       setCanClaimDaily(false);
     }
@@ -174,16 +170,12 @@ export function Header() {
   const handleClaimDaily = async () => {
     setClaimingDaily(true);
     try {
-      const res = await fetch(`${API_BASE}/api/credits/daily`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      const data = await res.json();
+      const data = await creditsApi.claimDaily();
       if (data.success) {
         setCredits(data.data?.new_balance ?? 0);
         setCanClaimDaily(false);
       } else {
-        addToast(data.message || 'Failed to claim daily credits', 'error');
+        addToast(data.message || data.error?.message || 'Failed to claim daily credits', 'error');
       }
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Failed to claim daily credits', 'error');

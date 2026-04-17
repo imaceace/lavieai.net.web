@@ -1580,7 +1580,10 @@ export default function Home() {
           </div>
           
           {/* Top 6 Interactive Showcase */}
-          <InteractiveI2IShowcase onSelectUseCase={handleSelectUseCase} />
+          <InteractiveI2IShowcase
+            onSelectUseCase={handleSelectUseCase}
+            pricingPreviewMap={useCasePricingPreviewMap}
+          />
 
           {/*
           暂时注释保留：原 Transform Your Image / Explore More 区块
@@ -1915,10 +1918,24 @@ export default function Home() {
                   </>
                 ) : isPendingUseCaseTrialEligible ? (
                   <>
-                    <span style={{ color: 'var(--gen-text-muted)' }}>Trial chances left</span>
+                    <span style={{ color: 'var(--gen-text-muted)' }}>
+                      {pendingUseCasePricingPreview?.trial_audience === 'visitor' ? 'Try Free' : 'Free Trial'}
+                    </span>
                     <span className="font-semibold" style={{ color: 'var(--gen-text)' }}>
                       {pendingUseCaseTrialRemaining}
                     </span>
+                  </>
+                ) : pendingUseCasePricingPreview?.login_required_for_trial && !user ? (
+                  <>
+                    <span style={{ color: 'var(--gen-text-muted)' }}>Free trial</span>
+                    <button
+                      type="button"
+                      onClick={() => openLoginModal()}
+                      className="font-semibold underline underline-offset-2"
+                      style={{ color: 'var(--gen-text)' }}
+                    >
+                      Login for trial
+                    </button>
                   </>
                 ) : (
                   <>

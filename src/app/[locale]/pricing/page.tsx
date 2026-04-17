@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Check, X, Zap, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useUserStore } from "@/stores/userStore";
-import { whitelistApi } from "@/lib/api-client";
+import { subscriptionApi, whitelistApi } from "@/lib/api-client";
 import { useToast } from "@/hooks/useToast";
 
 const plans = [
@@ -194,20 +194,7 @@ export default function PricingPage() {
   };
 
   const createSubscriptionCheckout = async (planTier: "creator" | "plus" | "studio") => {
-    const checkoutRes = await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/subscription/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        plan: planTier,
-        type: isYearly ? 'yearly' : 'monthly',
-      }),
-    });
-    const checkoutData = await checkoutRes.json();
-    if (!checkoutRes.ok || !checkoutData?.success || !checkoutData?.data?.checkoutUrl) {
-      throw new Error(checkoutData?.error?.message || 'Failed to create checkout');
-    }
-    return checkoutData.data.checkoutUrl as string;
+    return subscriptionApi.createCheckout(planTier, isYearly ? 'yearly' : 'monthly');
   };
 
   const handlePlanClick = async (plan: typeof plans[0]) => {
@@ -283,19 +270,12 @@ export default function PricingPage() {
         ? `I agree to switch my billing cycle from ${selectedPlan.name} (${currentInterval}) to ${selectedPlan.name} (${targetInterval}). I understand this switch is effective today, and my previous subscription will be settled based on remaining refundable credits under current refund policy. Refund arrival depends on payment channel processing time (typically 3-7 business days). I acknowledge the 24-hour priority review policy.`
         : `I agree to upgrade to ${selectedPlan.name}. I understand my current subscription will be replaced by the new plan effective today, and no extra reward/bonus credits are issued outside normal subscription credit allocation. Refund arrival depends on payment channel processing time (typically 3-7 business days). I acknowledge the 24-hour priority review policy.`;
       
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/subscription/upgrade-consent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+      await subscriptionApi.recordUpgradeConsent({
           old_plan: currentTier,
           new_plan: selectedPlan.tier,
           consent_text: consentText,
-        }),
       });
-      
-      if (!res.ok) throw new Error('Failed to record consent');
-      
+
       startCheckoutCooldown();
       const checkoutUrl = await createSubscriptionCheckout(selectedPlan.tier as "creator" | "plus" | "studio");
       addToast('Consent recorded! Redirecting to checkout...', 'success');

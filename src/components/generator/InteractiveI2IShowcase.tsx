@@ -7,6 +7,11 @@ import { useUserStore } from '@/stores/userStore';
 
 interface Props {
   onSelectUseCase: (useCase: InteractiveI2ICase) => void;
+  pricingPreviewMap?: Record<string, {
+    trial?: { eligible: boolean; remaining: number };
+    trial_audience?: 'visitor' | 'registered_free' | 'subscriber' | null;
+    login_required_for_trial?: boolean;
+  } | undefined>;
 }
 
 const TOP_IDS = [
@@ -55,7 +60,7 @@ const POPULAR_IDS = new Set<string>([
 
 const AUTOPLAY_MS = 3200;
 
-export function InteractiveI2IShowcase({ onSelectUseCase }: Props) {
+export function InteractiveI2IShowcase({ onSelectUseCase, pricingPreviewMap = {} }: Props) {
   const t = useTranslations();
   const { user } = useUserStore();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -208,6 +213,11 @@ export function InteractiveI2IShowcase({ onSelectUseCase }: Props) {
     const isLocked = requiredWeight > currentWeight;
     const descText = getDescText(item);
     const isPopular = POPULAR_IDS.has(item.id);
+    const preview = pricingPreviewMap[item.id];
+    const hasTrial = Boolean(preview?.trial?.eligible && (preview?.trial?.remaining || 0) > 0);
+    const showVisitorTrial = hasTrial && preview?.trial_audience === 'visitor';
+    const showRegisteredTrial = hasTrial && preview?.trial_audience === 'registered_free';
+    const showLoginForTrial = Boolean(preview?.login_required_for_trial && !user);
     const thumbObjectPosition =
       item.thumbObjectPosition ||
       item.afterObjectPosition ||
@@ -266,6 +276,21 @@ export function InteractiveI2IShowcase({ onSelectUseCase }: Props) {
               <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/45 text-white backdrop-blur-sm">
                 {orientation === 'rail' ? 'Quick Pick' : 'Effect'}
               </span>
+              {showVisitorTrial && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400 text-emerald-950">
+                  Try Free
+                </span>
+              )}
+              {showRegisteredTrial && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-400 text-violet-950">
+                  {preview?.trial?.remaining === 1 ? '1 Left' : `${preview?.trial?.remaining} Left`}
+                </span>
+              )}
+              {showLoginForTrial && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-400 text-sky-950">
+                  Login For Trial
+                </span>
+              )}
               {isPopular && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-black">
                   Popular
