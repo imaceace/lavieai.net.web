@@ -14,6 +14,9 @@ interface Props {
   } | undefined>;
 }
 
+type BadgeTone = 'success' | 'login' | 'popular' | 'tier';
+type BadgeItem = { label: string; tone: BadgeTone };
+
 const TOP_IDS = [
   'removeBackground',
   'sketchToReal',
@@ -57,6 +60,7 @@ const POPULAR_IDS = new Set<string>([
   'ghibliStyle',
   'pixarStyle',
 ]);
+const VISITOR_TRIAL_IDS = new Set<string>(['removeBackground']);
 
 const AUTOPLAY_MS = 3200;
 
@@ -84,6 +88,21 @@ export function InteractiveI2IShowcase({ onSelectUseCase, pricingPreviewMap = {}
     () => new Map(INTERACTIVE_I2I_CASES.map((item, index) => [item.id, { item, index }])),
     []
   );
+
+  const getTierBadgeLabel = (requiredTier?: InteractiveI2ICase['requiredTier']) => {
+    if (requiredTier === 'basic') return 'Creator';
+    if (requiredTier === 'ultra') return 'Studio';
+    if (requiredTier === 'max') return 'Max';
+    if (requiredTier === 'pro') return 'Pro';
+    return '';
+  };
+
+  const getBadgeClasses = (tone: BadgeTone) => {
+    if (tone === 'success') return 'bg-emerald-400/95 text-emerald-950';
+    if (tone === 'login') return 'bg-sky-400/95 text-sky-950';
+    if (tone === 'popular') return 'bg-amber-400/95 text-black';
+    return 'bg-fuchsia-500/95 text-white';
+  };
 
   const getCaseById = (id: string): InteractiveI2ICase | null => caseMap.get(id)?.item || null;
 
@@ -215,9 +234,30 @@ export function InteractiveI2IShowcase({ onSelectUseCase, pricingPreviewMap = {}
     const isPopular = POPULAR_IDS.has(item.id);
     const preview = pricingPreviewMap[item.id];
     const hasTrial = Boolean(preview?.trial?.eligible && (preview?.trial?.remaining || 0) > 0);
-    const showVisitorTrial = hasTrial && preview?.trial_audience === 'visitor';
-    const showRegisteredTrial = hasTrial && preview?.trial_audience === 'registered_free';
-    const showLoginForTrial = Boolean(preview?.login_required_for_trial && !user);
+    const isGuestDirectAccess = VISITOR_TRIAL_IDS.has(item.id);
+    const showVisitorTrial = !isLocked && !user && (
+      (hasTrial && preview?.trial_audience === 'visitor') ||
+      isGuestDirectAccess
+    );
+    const showRegisteredTrial = !isLocked && !!user && hasTrial && preview?.trial_audience === 'registered_free';
+    const showLoginForAccess = !isLocked && !user && !showVisitorTrial && !isGuestDirectAccess;
+    const badges: BadgeItem[] = [];
+    if (isLocked) {
+      const tierLabel = getTierBadgeLabel(item.requiredTier);
+      if (tierLabel) badges.push({ label: tierLabel, tone: 'tier' });
+    } else if (showVisitorTrial) {
+      badges.push({ label: 'Free', tone: 'success' });
+    } else if (showRegisteredTrial) {
+      badges.push({
+        label: preview?.trial?.remaining === 1 ? '1 Left' : `${preview?.trial?.remaining} Left`,
+        tone: 'success',
+      });
+    } else if (showLoginForAccess) {
+      badges.push({ label: 'Login', tone: 'login' });
+    }
+    if (isPopular) {
+      badges.push({ label: 'Popular', tone: 'popular' });
+    }
     const thumbObjectPosition =
       item.thumbObjectPosition ||
       item.afterObjectPosition ||
@@ -270,40 +310,19 @@ export function InteractiveI2IShowcase({ onSelectUseCase, pricingPreviewMap = {}
           <div className={`absolute inset-0 ${isActive ? 'bg-gradient-to-t from-black/62 via-black/20 to-black/8' : 'bg-gradient-to-t from-black/48 via-black/14 to-black/4'}`} />
         </div>
 
-        <div className="relative z-10 h-full p-3 flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/45 text-white backdrop-blur-sm">
-                {orientation === 'rail' ? 'Quick Pick' : 'Effect'}
-              </span>
-              {showVisitorTrial && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400 text-emerald-950">
-                  Try Free
+        <div className="relative z-10 h-full p-3 flex flex-col justify-end">
+          {badges.length > 0 && (
+            <div className="absolute top-3 left-3 flex flex-col items-start gap-1">
+              {badges.slice(0, 2).map((badge) => (
+                <span
+                  key={`${item.id}-${badge.label}`}
+                  className={`px-2 py-0.5 rounded-full text-[10px] leading-none font-bold shadow-sm backdrop-blur-sm ${getBadgeClasses(badge.tone)}`}
+                >
+                  {badge.label}
                 </span>
-              )}
-              {showRegisteredTrial && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-400 text-violet-950">
-                  {preview?.trial?.remaining === 1 ? '1 Left' : `${preview?.trial?.remaining} Left`}
-                </span>
-              )}
-              {showLoginForTrial && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-400 text-sky-950">
-                  Login For Trial
-                </span>
-              )}
-              {isPopular && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-black">
-                  Popular
-                </span>
-              )}
+              ))}
             </div>
-            {isLocked && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
-                {item.requiredTier === 'basic' ? 'Creator' : item.requiredTier === 'ultra' ? 'Studio' : item.requiredTier === 'max' ? 'Max' : 'Pro'}
-              </span>
-            )}
-          </div>
-
+          )}
           <div>
             <h3 className="m-0 text-sm font-bold leading-tight text-white drop-shadow-md">
               {item.tabLabel}

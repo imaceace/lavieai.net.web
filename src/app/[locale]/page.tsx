@@ -19,6 +19,7 @@ import { generateApi, pollTaskStatus, userApi, configApi, authApi, uploadApi, ge
 import Script from "next/script";
 
 const RECENT_USECASE_IMAGE_KEY_PREFIX = "recentUseCaseImage:v2";
+const GUEST_DIRECT_USE_CASE_IDS = new Set<string>(["removeBackground"]);
 const RECENT_USECASE_IMAGE_LEGACY_KEY = "recentUseCaseImage";
 const RECENT_USECASE_IMAGE_FALLBACK_TTL_SECONDS = 30 * 24 * 60 * 60;
 const USECASE_PRICING_CACHE_KEY_PREFIX = "useCasePricingPreview:v1";
@@ -632,6 +633,10 @@ export default function Home() {
 
     // H3 图生图入口：先弹出选图浮窗，选图后再回填参数并自动提交
     const targetUseCase = params.useCase || useCaseData.id || 'general';
+    if (!user && !GUEST_DIRECT_USE_CASE_IDS.has(targetUseCase)) {
+      openLoginModal();
+      return;
+    }
     setPendingUseCaseData(useCaseData);
     setPendingUseCaseImage(recentUseCaseImage);
     setPendingUseCasePricingPreview(null);
@@ -703,7 +708,7 @@ export default function Home() {
       addToast(t('generator.useCaseUploadModal.uploadFirstNotice'), "info");
       return;
     }
-    if (!isPendingUseCaseTrialEligible && userCredits !== null && userCredits < pendingUseCaseCost) {
+    if (!isPendingUseCaseFreeEntry && userCredits !== null && userCredits < pendingUseCaseCost) {
       setUpgradeModalTitle(t('generator.upgradeRequiredTitle') || 'Upgrade Required');
       setUpgradeModalSubtitle(t('generator.notEnoughCredits', { cost: pendingUseCaseCost }));
       setIsUpgradeModalOpen(true);
@@ -837,6 +842,30 @@ export default function Home() {
     : "";
   const isPendingUseCaseTrialEligible = (pendingUseCasePricingPreview?.trial?.remaining || 0) > 0;
   const pendingUseCaseTrialRemaining = pendingUseCasePricingPreview?.trial?.remaining || 0;
+  const pendingUseCaseId = pendingUseCaseData?.id || pendingUseCaseData?.params?.useCase || 'general';
+  const pendingRequiredTier = pendingUseCaseData?.requiredTier || 'free';
+  const PENDING_TIER_WEIGHT: Record<string, number> = {
+    free: 0,
+    basic: 1,
+    pro: 2,
+    max: 3,
+    ultra: 4,
+  };
+  const pendingCurrentWeight = PENDING_TIER_WEIGHT[(user?.tier || 'free').toLowerCase()] || 0;
+  const pendingRequiredWeight = PENDING_TIER_WEIGHT[pendingRequiredTier] || 0;
+  const isPendingUseCaseLocked = pendingRequiredWeight > pendingCurrentWeight;
+  const pendingTierLabel =
+    pendingRequiredTier === 'basic'
+      ? 'Creator'
+      : pendingRequiredTier === 'ultra'
+        ? 'Studio'
+        : pendingRequiredTier === 'max'
+          ? 'Max'
+          : pendingRequiredTier === 'pro'
+            ? 'Pro'
+            : '';
+  const isPendingVisitorTrialUseCase = !user && pendingUseCaseId === 'removeBackground' && !isPendingUseCaseLocked;
+  const isPendingUseCaseFreeEntry = isPendingUseCaseTrialEligible || isPendingVisitorTrialUseCase;
   const pendingUseCaseModel = getAutoModelByTier();
   const pendingUseCaseCost = pendingUseCaseData
     ? (pendingUseCasePricingPreview?.points_cost ?? getGenerationCost(
@@ -845,7 +874,7 @@ export default function Home() {
       pendingUseCaseModel === 'basic' ? 1 : quality
     ))
     : generationCost;
-  const hasEnoughPendingUseCaseCredits = isPendingUseCaseTrialEligible || userCredits === null || userCredits >= pendingUseCaseCost;
+  const hasEnoughPendingUseCaseCredits = isPendingUseCaseFreeEntry || userCredits === null || userCredits >= pendingUseCaseCost;
 
   const professionalSubjects: Record<string, string[]> = {
     "photographic": [
@@ -1916,13 +1945,20 @@ export default function Home() {
                     <span style={{ color: 'var(--gen-text-muted)' }}>Pricing</span>
                     <span className="font-semibold" style={{ color: 'var(--gen-text)' }}>Checking...</span>
                   </>
-                ) : isPendingUseCaseTrialEligible ? (
+                ) : isPendingUseCaseLocked ? (
+                  <>
+                    <span style={{ color: 'var(--gen-text-muted)' }}>Plan required</span>
+                    <span className="font-semibold" style={{ color: 'var(--gen-text)' }}>
+                      {pendingTierLabel}
+                    </span>
+                  </>
+                ) : isPendingUseCaseFreeEntry ? (
                   <>
                     <span style={{ color: 'var(--gen-text-muted)' }}>
-                      {pendingUseCasePricingPreview?.trial_audience === 'visitor' ? 'Try Free' : 'Free Trial'}
+                      {pendingUseCasePricingPreview?.trial_audience === 'visitor' || isPendingVisitorTrialUseCase ? 'Try Free' : 'Free Trial'}
                     </span>
                     <span className="font-semibold" style={{ color: 'var(--gen-text)' }}>
-                      {pendingUseCaseTrialRemaining}
+                      {pendingUseCaseTrialRemaining || 1}
                     </span>
                   </>
                 ) : pendingUseCasePricingPreview?.login_required_for_trial && !user ? (
