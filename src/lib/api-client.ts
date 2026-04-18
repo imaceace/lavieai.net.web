@@ -1136,6 +1136,76 @@ export const uploadApi = {
   },
 };
 
+export const downloadApi = {
+  downloadResource: async (
+    params: { resourceType: "work"; resourceId: string; format?: "original" | "webp" | "png" | "jpeg" | "ico" },
+    turnstileToken?: string
+  ): Promise<Blob> => {
+    const fingerprint = await getFingerprint();
+    const query = new URLSearchParams({
+      resourceType: params.resourceType,
+      resourceId: params.resourceId,
+    });
+    if (params.format) {
+      query.set("format", params.format);
+    }
+    const headers: Record<string, string> = {
+      Accept: "image/*,*/*;q=0.8",
+    };
+
+    if (fingerprint) {
+      headers["X-Fingerprint"] = fingerprint;
+    }
+    if (turnstileToken) {
+      headers["X-Turnstile-Token"] = turnstileToken;
+    }
+
+    const res = await apiFetch(`/api/download?${query.toString()}`, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      const err = await res
+        .json()
+        .catch(() => ({ error: { message: "Download failed", code: "UNKNOWN_ERROR" } }));
+      const code = err.error?.code || "UNKNOWN_ERROR";
+
+      if (
+        res.status === 401 ||
+        code === "UNAUTHORIZED" ||
+        code === "TOKEN_EXPIRED" ||
+        code === "INVALID_TOKEN"
+      ) {
+        const { useUserStore } = await import("@/stores/userStore");
+        useUserStore.getState().openLoginModal();
+        const errorObj = new Error(err.error?.message || "Login required");
+        (errorObj as any).code = "AUTH_REQUIRED";
+        throw errorObj;
+      }
+
+      if (code === "CHALLENGE_REQUIRED" && !turnstileToken) {
+        const { useTurnstileStore } = await import("@/stores/turnstileStore");
+        try {
+          const newToken = await useTurnstileStore.getState().requestChallenge();
+          return downloadApi.downloadResource(params, newToken);
+        } catch {
+          const errorObj = new Error("Challenge cancelled");
+          (errorObj as any).code = "CHALLENGE_CANCELLED";
+          throw errorObj;
+        }
+      }
+
+      const errorObj = new Error(err.error?.message || "Download failed");
+      (errorObj as any).code = code;
+      throw errorObj;
+    }
+
+    return res.blob();
+  },
+};
+
 // Gallery API
 export const galleryApi = {
   getImages: async (params?: { style?: string; limit?: number; offset?: number; sort?: string; exclude?: string }): Promise<{ images: Array<{ id: string; result_url: string; prompt: string; style: string | null; use_case: string | null }> }> => {

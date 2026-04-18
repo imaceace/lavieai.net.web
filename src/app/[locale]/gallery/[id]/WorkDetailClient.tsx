@@ -6,7 +6,7 @@ import { Link } from "@/routing";
 import { useToast } from "@/hooks/useToast";
 import { useUserStore } from "@/stores/userStore";
 import { ArrowLeft, Copy, Sparkles, Download, Share2, Loader2, ChevronDown } from "lucide-react";
-import { galleryApi } from "@/lib/api-client";
+import { downloadApi, galleryApi } from "@/lib/api-client";
 
 interface GalleryItem {
   id: string;
@@ -92,7 +92,7 @@ export function WorkDetailClient({
 }) {
   const router = useRouter();
   const { addToast } = useToast();
-  const { user } = useUserStore();
+  const { user, openLoginModal } = useUserStore();
   const isPremium = user && user.subscription_type !== "free";
 
   const [item, setItem] = useState<GalleryItem | null>(null);
@@ -185,89 +185,26 @@ export function WorkDetailClient({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleDownloadMenuToggle = () => {
+    if (!user) {
+      openLoginModal();
+      return;
+    }
+    setIsDownloadMenuOpen(!isDownloadMenuOpen);
+  };
+
   const handleDownload = async (format: 'webp' | 'png' | 'jpeg' | 'ico') => {
     setIsDownloadMenuOpen(false);
     if (!item?.result_url && !item?.imageUrl) return;
     
-    const url = item.result_url || item.imageUrl;
     try {
-      const res = await fetch(url!);
-      const originalBlob = await res.blob();
-      
-      let finalBlob = originalBlob;
+      const finalBlob = await downloadApi.downloadResource({
+        resourceType: "work",
+        resourceId: item.id,
+        format,
+      });
       const safeName = item.prompt.slice(0, 30).replace(/[^a-z0-9]/gi, "_").toLowerCase();
       let ext = format;
-      
-      if (format !== 'webp' && format !== 'png' && format !== 'jpeg' && format !== 'ico') {
-         // fallback
-      } else {
-        // Need to draw to canvas for conversion
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        const imgLoadPromise = new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = window.URL.createObjectURL(originalBlob);
-        });
-        await imgLoadPromise;
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Canvas not supported');
-        ctx.drawImage(img, 0, 0);
-        
-        if (!isPremium) {
-          const text = "Lavie AI";
-          const fontSize = Math.max(20, Math.floor(img.width / 25));
-          ctx.font = `bold ${fontSize}px sans-serif`;
-          ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-          ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
-          ctx.shadowBlur = 4;
-          ctx.shadowOffsetX = 2;
-          ctx.shadowOffsetY = 2;
-          
-          const padding = fontSize;
-          const textMetrics = ctx.measureText(text);
-          const x = img.width - textMetrics.width - padding;
-          const y = img.height - padding;
-          
-          ctx.fillText(text, x, y);
-        }
-        
-        if (format === 'ico') {
-          const size = Math.min(img.width, img.height, 256);
-          const icoCanvas = document.createElement('canvas');
-          icoCanvas.width = size;
-          icoCanvas.height = size;
-          const icoCtx = icoCanvas.getContext('2d');
-          icoCtx?.drawImage(img, 0, 0, size, size);
-          
-          const pngBlob = await new Promise<Blob>((res) => icoCanvas.toBlob((b) => res(b!), 'image/png'));
-          const pngBuffer = await pngBlob.arrayBuffer();
-          const pngArray = new Uint8Array(pngBuffer);
-          
-          const icoBuffer = new ArrayBuffer(22 + pngArray.length);
-          const view = new DataView(icoBuffer);
-          view.setUint16(0, 0, true);
-          view.setUint16(2, 1, true);
-          view.setUint16(4, 1, true);
-          view.setUint8(6, size === 256 ? 0 : size);
-          view.setUint8(7, size === 256 ? 0 : size);
-          view.setUint8(8, 0);
-          view.setUint8(9, 0);
-          view.setUint16(10, 1, true);
-          view.setUint16(12, 32, true);
-          view.setUint32(14, pngArray.length, true);
-          view.setUint32(18, 22, true);
-          new Uint8Array(icoBuffer, 22).set(pngArray);
-          
-          finalBlob = new Blob([icoBuffer], { type: 'image/x-icon' });
-        } else {
-          finalBlob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), `image/${format}`, 0.95));
-        }
-      }
 
       const blobUrl = window.URL.createObjectURL(finalBlob);
       const a = document.createElement("a");
@@ -278,6 +215,10 @@ export function WorkDetailClient({
       window.URL.revokeObjectURL(blobUrl);
       document.body.removeChild(a);
     } catch (err) {
+      const code = (err as any)?.code;
+      if (code === "AUTH_REQUIRED" || code === "CHALLENGE_CANCELLED") {
+        return;
+      }
       console.error('Download failed', err);
       addToast(locale === "es" ? "Descarga fallida" : "Download failed", "error");
     }
@@ -469,8 +410,9 @@ export function WorkDetailClient({
             {imageUrl && (
               <div className="relative inline-block text-left" ref={downloadMenuRef}>
                 <button
-                  onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
+                  onClick={handleDownloadMenuToggle}
                   className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                  title={user ? translations.download : "Sign in to download"}
                 >
                   <Download className="w-5 h-5 text-gray-600" />
                   <span className="text-gray-700">{translations.download}</span>
