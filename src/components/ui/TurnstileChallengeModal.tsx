@@ -34,7 +34,13 @@ export function TurnstileChallengeModal() {
     }
   };
 
-  const handleError = () => {
+  const handleError = (errorCode?: string) => {
+    console.error("[Turnstile] widget error", {
+      errorCode,
+      siteKey: SITE_KEY,
+      hostname: window.location.hostname,
+      href: window.location.href,
+    });
     closeModal();
   };
 
