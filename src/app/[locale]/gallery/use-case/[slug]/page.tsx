@@ -21,6 +21,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale, slug } = await params;
   const useCaseOption = await getUseCaseOptionBySlug(slug);
+  const t = await getTranslations({ locale, namespace: "gallery" });
 
   if (!useCaseOption) {
     return {
@@ -30,11 +31,16 @@ export async function generateMetadata({
   }
 
   const useCaseCopy = buildUseCaseSeoCopy(useCaseOption);
+  const title = t("useCaseLandingTitle", { useCase: useCaseOption.label });
+  const description =
+    locale === routing.defaultLocale
+      ? useCaseCopy.description
+      : t("metaUseCaseDescription", { useCase: useCaseOption.label });
   const canonical = buildUseCaseUrl(routing.defaultLocale, locale, useCaseOption.id);
 
   return {
-    title: useCaseCopy.title,
-    description: useCaseCopy.description,
+    title,
+    description,
     keywords: useCaseCopy.keywords,
     alternates: {
       canonical,
@@ -46,16 +52,16 @@ export async function generateMetadata({
       ),
     },
     openGraph: {
-      title: useCaseCopy.title,
-      description: useCaseCopy.description,
+      title,
+      description,
       url: canonical,
       siteName: "Lavie AI",
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: useCaseCopy.title,
-      description: useCaseCopy.description,
+      title,
+      description,
     },
   };
 }
@@ -80,6 +86,10 @@ export default async function GalleryUseCaseLandingPage({
 
   if (!useCaseOption) notFound();
   const useCaseCopy = buildUseCaseSeoCopy(useCaseOption);
+  const localizedDescription =
+    locale === routing.defaultLocale
+      ? useCaseCopy.description
+      : t("metaUseCaseDescription", { useCase: useCaseOption.label });
 
   const relatedStyles = styleOptions
     .filter((item) => works.some((work) => work.style === item.id))
@@ -90,7 +100,7 @@ export default async function GalleryUseCaseLandingPage({
       backHref="/gallery"
       backLabel={t("backToGallery")}
       title={t("useCaseLandingTitle", { useCase: useCaseOption.label })}
-      description={useCaseCopy.description}
+      description={localizedDescription}
       pageUrl={buildUseCaseUrl(routing.defaultLocale, locale, useCaseOption.id)}
       cards={works.map((work) => ({
         id: work.id,

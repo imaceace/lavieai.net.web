@@ -103,10 +103,18 @@
     "latestWorks": "Latest Gallery Creations",
     "styleLandingTitle": "{style} AI Art Gallery",
     "styleLandingDescription": "Browse public {style} AI images, prompt examples, and related inspiration created with Lavie AI.",
+    "metaStyleDescription": "Explore {style} image ideas, prompt inspiration, and real examples created with Lavie AI. A quick way to find a look you like and create something similar.",
     "useCaseLandingTitle": "{useCase} AI Image Gallery",
     "useCaseLandingDescription": "Browse public AI images for {useCase}, prompt examples, and related inspiration created with Lavie AI.",
+    "metaUseCaseDescription": "Explore real {useCase} examples, prompt inspiration, and public creations made with Lavie AI. Great for getting ideas before you make your own version.",
     "comboLandingTitle": "{style} {useCase} AI Gallery",
     "comboLandingDescription": "Browse public {style} AI images for {useCase}, prompt examples, and related inspiration created with Lavie AI.",
+    "metaComboDescription": "Explore {style} {useCase} examples, prompt inspiration, and real creations made with Lavie AI. A simple way to find ideas you can reuse and turn into your own image.",
+    "metaWorkTitleWithDescriptor": "{descriptor} AI image prompt example | Lavie AI",
+    "metaWorkTitleFallback": "AI generated artwork prompt example | Lavie AI",
+    "metaWorkDescriptionWithDescriptor": "Explore this {descriptor} image prompt on Lavie AI. Prompt: {prompt}",
+    "metaWorkDescriptionFallback": "Explore this AI image prompt on Lavie AI. Prompt: {prompt}",
+    "metaImageFallbackName": "AI generated artwork",
     "exploreOtherStyles": "Explore More Styles",
     "exploreOtherUseCases": "Explore More Use Cases",
     "startCreating": "Start Creating with Lavie AI",
@@ -121,6 +129,8 @@
     "pts": "pts"
   },
   "home": {
+    "metaTitle": "Lavie AI - Free AI Image Generator",
+    "metaDescription": "Create stunning AI images with Lavie AI. Free text-to-image and image-to-image tools, no login required. Start creating today.",
     "hero": {
       "subtitle": "✨ Create stunning AI art with Lavie AI Image Generator",
       "description": "The best free AI image generator. Dream it. Create it with Lavie AI. Share it.",

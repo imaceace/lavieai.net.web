@@ -52,10 +52,18 @@
     "latestWorks": "Dernières Créations de la Galerie",
     "styleLandingTitle": "Galerie d'Art IA {style}",
     "styleLandingDescription": "Parcourez des images IA publiques en style {style}, des exemples de prompts et de l'inspiration connexe créés avec Lavie AI.",
+    "metaStyleDescription": "Explorez des idées visuelles en style {style}, des inspirations de prompts et des exemples réels créés avec Lavie AI. Un moyen rapide de trouver un rendu qui vous plaît et de créer quelque chose de similaire.",
     "useCaseLandingTitle": "Galerie d'Images IA pour {useCase}",
     "useCaseLandingDescription": "Parcourez des images IA publiques pour {useCase}, des exemples de prompts et de l'inspiration connexe créés avec Lavie AI.",
+    "metaUseCaseDescription": "Explorez de vrais exemples pour {useCase}, des inspirations de prompts et des créations publiques réalisées avec Lavie AI. Idéal pour trouver des idées avant de créer votre propre version.",
     "comboLandingTitle": "Galerie IA {style} pour {useCase}",
     "comboLandingDescription": "Parcourez des images IA publiques en style {style} pour {useCase}, des exemples de prompts et de l'inspiration connexe créés avec Lavie AI.",
+    "metaComboDescription": "Explorez des exemples {style} pour {useCase}, des inspirations de prompts et des créations réelles réalisées avec Lavie AI. Une façon simple de trouver des idées à réutiliser pour votre propre image.",
+    "metaWorkTitleWithDescriptor": "Exemple de prompt d'image IA {descriptor} | Lavie AI",
+    "metaWorkTitleFallback": "Exemple de prompt d'œuvre générée par IA | Lavie AI",
+    "metaWorkDescriptionWithDescriptor": "Découvrez ce prompt d'image {descriptor} sur Lavie AI. Prompt : {prompt}",
+    "metaWorkDescriptionFallback": "Découvrez ce prompt d'image IA sur Lavie AI. Prompt : {prompt}",
+    "metaImageFallbackName": "œuvre générée par IA",
     "exploreOtherStyles": "Explorer d'Autres Styles",
     "exploreOtherUseCases": "Explorer d'Autres Cas d'Utilisation",
     "startCreating": "Commencer à Créer avec Lavie AI",
@@ -70,6 +78,8 @@
     "pts": "pts"
   },
   "home": {
+    "metaTitle": "Lavie AI - Generateur d'Images IA Gratuit",
+    "metaDescription": "Creez de superbes images IA avec Lavie AI. Outils gratuits de texte en image et d'image en image, sans connexion requise.",
     "hero": {
       "subtitle": "✨ Créez de l'art IA avec Lavie AI Image Generator",
       "description": "Le meilleur générateur d'images IA gratuit. Rêvez-le. Créez-le avec Lavie AI. Partagez-le.",

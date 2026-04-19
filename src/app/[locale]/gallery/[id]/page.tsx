@@ -5,9 +5,7 @@ import { routing } from "@/routing";
 import { getGalleryWork, getWorkDetailPageData } from "@/lib/gallery-data";
 import {
   buildLocalizedPath,
-  buildWorkSeoDescription,
   buildWorkSeoKeywords,
-  buildWorkSeoTitle,
   buildWorkUrl,
   formatTaxonomyLabel,
   SITE_URL,
@@ -18,12 +16,41 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
+function buildWorkDescriptor(work: Awaited<ReturnType<typeof getGalleryWork>>) {
+  if (!work) return "";
+  return [formatTaxonomyLabel(work.style), formatTaxonomyLabel(work.use_case)]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildLocalizedWorkSeoTitle(
+  work: NonNullable<Awaited<ReturnType<typeof getGalleryWork>>>,
+  t: (key: string, values?: Record<string, string | number>) => string
+) {
+  const descriptor = buildWorkDescriptor(work);
+  return descriptor
+    ? t("metaWorkTitleWithDescriptor", { descriptor })
+    : t("metaWorkTitleFallback");
+}
+
+function buildLocalizedWorkSeoDescription(
+  work: NonNullable<Awaited<ReturnType<typeof getGalleryWork>>>,
+  t: (key: string, values?: Record<string, string | number>) => string
+) {
+  const descriptor = buildWorkDescriptor(work);
+  const prompt = truncateText(work.prompt || t("metaImageFallbackName"), 150);
+  return descriptor
+    ? t("metaWorkDescriptionWithDescriptor", { descriptor, prompt })
+    : t("metaWorkDescriptionFallback", { prompt });
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ locale: string; id: string }>;
 }): Promise<Metadata> {
   const { locale, id } = await params;
+  const t = await getTranslations({ locale, namespace: "gallery" });
   const work = await getGalleryWork(id);
   const canonicalUrl = buildWorkUrl(routing.defaultLocale, locale, id);
 
@@ -36,8 +63,8 @@ export async function generateMetadata({
 
   if (!work) {
     return {
-      title: "Work Not Found | Lavie AI",
-      description: "The requested artwork could not be found in the Lavie AI gallery.",
+      title: `${t("workNotFound")} | Lavie AI`,
+      description: t("workNotFoundDesc"),
       alternates: {
         canonical: canonicalUrl,
         languages: alternates,
@@ -50,8 +77,8 @@ export async function generateMetadata({
   }
 
   const imageUrl = work.result_url || work.imageUrl;
-  const title = buildWorkSeoTitle(work);
-  const description = buildWorkSeoDescription(work);
+  const title = buildLocalizedWorkSeoTitle(work, t);
+  const description = buildLocalizedWorkSeoDescription(work, t);
 
   return {
     title,
@@ -99,12 +126,17 @@ export default async function WorkDetailPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  const t = await getTranslations("gallery");
+  const [t, tNav] = await Promise.all([
+    getTranslations("gallery"),
+    getTranslations("nav"),
+  ]);
   const pageData = await getWorkDetailPageData(id);
   const work = pageData.work;
   const imageUrl = work?.result_url || work?.imageUrl;
   const pageUrl = buildWorkUrl(routing.defaultLocale, locale, id);
-  const imageTitle = work ? buildWorkSeoTitle(work).replace(" | Lavie AI", "") : "AI Generated Artwork";
+  const imageTitle = work
+    ? buildLocalizedWorkSeoTitle(work, t).replace(" | Lavie AI", "")
+    : t("metaImageFallbackName");
   const jsonLd = work
     ? [
         {
@@ -120,7 +152,7 @@ export default async function WorkDetailPage({
             {
               "@type": "ListItem",
               position: 2,
-              name: "Gallery",
+              name: tNav("gallery"),
               item: new URL(
                 buildLocalizedPath(routing.defaultLocale, locale, "/gallery"),
                 SITE_URL
@@ -138,7 +170,7 @@ export default async function WorkDetailPage({
           "@context": "https://schema.org",
           "@type": "ImageObject",
           name: imageTitle,
-          description: buildWorkSeoDescription(work),
+          description: buildLocalizedWorkSeoDescription(work, t),
           contentUrl: imageUrl,
           url: pageUrl,
           caption: truncateText(work.prompt || imageTitle, 160),

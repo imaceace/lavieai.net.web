@@ -52,10 +52,18 @@
     "latestWorks": "Neueste Galerie-Kreationen",
     "styleLandingTitle": "{style} KI-Kunstgalerie",
     "styleLandingDescription": "Entdecke öffentliche KI-Bilder im Stil {style}, Prompt-Beispiele und verwandte Inspirationen, erstellt mit Lavie AI.",
+    "metaStyleDescription": "Entdecke Bildideen im Stil {style}, Prompt-Inspirationen und echte Beispiele, die mit Lavie AI erstellt wurden. Eine schnelle Möglichkeit, einen Look zu finden, der dir gefällt, und etwas Ähnliches zu erstellen.",
     "useCaseLandingTitle": "KI-Bildergalerie für {useCase}",
     "useCaseLandingDescription": "Entdecke öffentliche KI-Bilder für {useCase}, Prompt-Beispiele und verwandte Inspirationen, erstellt mit Lavie AI.",
+    "metaUseCaseDescription": "Entdecke echte Beispiele für {useCase}, Prompt-Inspirationen und öffentliche Kreationen mit Lavie AI. Ideal, um Ideen zu sammeln, bevor du deine eigene Version erstellst.",
     "comboLandingTitle": "{style} {useCase} KI-Galerie",
     "comboLandingDescription": "Entdecke öffentliche KI-Bilder im Stil {style} für {useCase}, Prompt-Beispiele und verwandte Inspirationen, erstellt mit Lavie AI.",
+    "metaComboDescription": "Entdecke {style}-Beispiele für {useCase}, Prompt-Inspirationen und echte Kreationen mit Lavie AI. Eine einfache Möglichkeit, Ideen zu finden und daraus dein eigenes Bild zu machen.",
+    "metaWorkTitleWithDescriptor": "{descriptor} KI-Bild-Prompt-Beispiel | Lavie AI",
+    "metaWorkTitleFallback": "Prompt-Beispiel für KI-generiertes Artwork | Lavie AI",
+    "metaWorkDescriptionWithDescriptor": "Entdecke diesen {descriptor}-Bildprompt auf Lavie AI. Prompt: {prompt}",
+    "metaWorkDescriptionFallback": "Entdecke diesen KI-Bildprompt auf Lavie AI. Prompt: {prompt}",
+    "metaImageFallbackName": "KI-generiertes Artwork",
     "exploreOtherStyles": "Weitere Stile Entdecken",
     "exploreOtherUseCases": "Weitere Anwendungsfälle Entdecken",
     "startCreating": "Mit Lavie AI Loslegen",
@@ -70,6 +78,8 @@
     "pts": "Pkt"
   },
   "home": {
+    "metaTitle": "Lavie AI - Kostenloser KI-Bildgenerator",
+    "metaDescription": "Erstelle beeindruckende KI-Bilder mit Lavie AI. Kostenlose Text-zu-Bild- und Bild-zu-Bild-Tools, ganz ohne Login.",
     "hero": {
       "subtitle": "✨ Erstelle atemberaubende KI-Kunst mit Lavie AI Image Generator",
       "description": "Der beste kostenlose KI-Bildgenerator. Träume es. Erschaffe es mit Lavie AI. Teile es.",

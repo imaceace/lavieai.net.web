@@ -27,6 +27,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale, style } = await params;
   const styleOption = await getStyleOption(style);
+  const t = await getTranslations({ locale, namespace: "gallery" });
 
   if (!styleOption) {
     return {
@@ -36,11 +37,16 @@ export async function generateMetadata({
   }
 
   const styleCopy = buildStyleSeoCopy(styleOption);
+  const title = t("styleLandingTitle", { style: styleOption.label });
+  const description =
+    locale === routing.defaultLocale
+      ? styleCopy.description
+      : t("metaStyleDescription", { style: styleOption.label });
   const canonical = buildStyleUrl(routing.defaultLocale, locale, styleOption.id);
 
   return {
-    title: styleCopy.title,
-    description: styleCopy.description,
+    title,
+    description,
     keywords: styleCopy.keywords,
     alternates: {
       canonical,
@@ -52,16 +58,16 @@ export async function generateMetadata({
       ),
     },
     openGraph: {
-      title: styleCopy.title,
-      description: styleCopy.description,
+      title,
+      description,
       url: canonical,
       siteName: "Lavie AI",
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: styleCopy.title,
-      description: styleCopy.description,
+      title,
+      description,
     },
   };
 }
@@ -84,6 +90,10 @@ export default async function GalleryStyleLandingPage({
 
   if (!styleOption) notFound();
   const styleCopy = buildStyleSeoCopy(styleOption);
+  const localizedDescription =
+    locale === routing.defaultLocale
+      ? styleCopy.description
+      : t("metaStyleDescription", { style: styleOption.label });
 
   const relatedUseCases = useCaseOptions
     .filter((item) => works.some((work) => work.use_case === item.id))
@@ -94,7 +104,7 @@ export default async function GalleryStyleLandingPage({
       backHref="/gallery"
       backLabel={t("backToGallery")}
       title={t("styleLandingTitle", { style: styleOption.label })}
-      description={styleCopy.description}
+      description={localizedDescription}
       pageUrl={buildStyleUrl(routing.defaultLocale, locale, styleOption.id)}
       cards={works.map((work) => ({
         id: work.id,

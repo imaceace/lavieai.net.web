@@ -34,6 +34,7 @@ export async function generateMetadata({
     getStyleOption(style),
     getUseCaseOptionBySlug(slug),
   ]);
+  const t = await getTranslations({ locale, namespace: "gallery" });
 
   if (!styleOption || !useCaseOption) {
     return {
@@ -43,6 +44,17 @@ export async function generateMetadata({
   }
 
   const comboCopy = buildComboSeoCopy(styleOption, useCaseOption);
+  const title = t("comboLandingTitle", {
+    style: styleOption.label,
+    useCase: useCaseOption.label,
+  });
+  const description =
+    locale === routing.defaultLocale
+      ? comboCopy.description
+      : t("metaComboDescription", {
+          style: styleOption.label,
+          useCase: useCaseOption.label,
+        });
   const canonical = buildStyleUseCaseUrl(
     routing.defaultLocale,
     locale,
@@ -51,8 +63,8 @@ export async function generateMetadata({
   );
 
   return {
-    title: comboCopy.title,
-    description: comboCopy.description,
+    title,
+    description,
     keywords: comboCopy.keywords,
     alternates: {
       canonical,
@@ -69,16 +81,16 @@ export async function generateMetadata({
       ),
     },
     openGraph: {
-      title: comboCopy.title,
-      description: comboCopy.description,
+      title,
+      description,
       url: canonical,
       siteName: "Lavie AI",
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: comboCopy.title,
-      description: comboCopy.description,
+      title,
+      description,
     },
   };
 }
@@ -104,6 +116,13 @@ export default async function GalleryStyleUseCaseLandingPage({
 
   if (!styleOption || !useCaseOption) notFound();
   const comboCopy = buildComboSeoCopy(styleOption, useCaseOption);
+  const localizedDescription =
+    locale === routing.defaultLocale
+      ? comboCopy.description
+      : t("metaComboDescription", {
+          style: styleOption.label,
+          useCase: useCaseOption.label,
+        });
 
   return (
     <GalleryLandingPage
@@ -113,7 +132,7 @@ export default async function GalleryStyleUseCaseLandingPage({
         style: styleOption.label,
         useCase: useCaseOption.label,
       })}
-      description={comboCopy.description}
+      description={localizedDescription}
       pageUrl={buildStyleUseCaseUrl(routing.defaultLocale, locale, styleOption.id, useCaseOption.id)}
       cards={works.map((work) => ({
         id: work.id,
