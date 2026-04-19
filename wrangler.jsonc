@@ -39,8 +39,7 @@
 		"binding": "IMAGES"
 	},
 	"vars": {
-		"NEXT_PUBLIC_GA_MEASUREMENT_ID": "G-L7Y2349054",
-		"NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAC_hhJpXLaKS6S6R0G2nubn36jI"
+		"NEXT_PUBLIC_GA_MEASUREMENT_ID": "G-L7Y2349054"
 	},
 	 "observability": {
 			"enabled": true,
