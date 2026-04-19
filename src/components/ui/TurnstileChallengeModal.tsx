@@ -6,8 +6,7 @@ import { useTurnstileStore } from "@/stores/turnstileStore";
 import { Shield, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-// Use Cloudflare's public testing key if no real key is provided
-const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || "";
 
 export function TurnstileChallengeModal() {
   const { isOpen, closeModal, resolvePromise } = useTurnstileStore();
@@ -62,14 +61,20 @@ export function TurnstileChallengeModal() {
         </div>
 
         <div className="flex justify-center min-h-[65px]">
-          <Turnstile
-            siteKey={SITE_KEY}
-            onSuccess={handleSuccess}
-            onError={handleError}
-            options={{
-              theme: "auto",
-            }}
-          />
+          {SITE_KEY ? (
+            <Turnstile
+              siteKey={SITE_KEY}
+              onSuccess={handleSuccess}
+              onError={handleError}
+              options={{
+                theme: "auto",
+              }}
+            />
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Turnstile is not configured. Please contact support and try again later.
+            </div>
+          )}
         </div>
       </div>
     </div>
