@@ -2,11 +2,15 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Link, routing } from "@/routing";
 import { useToast } from "@/hooks/useToast";
 import { useUserStore } from "@/stores/userStore";
 import { Search, Copy, Sparkles, X, Download, Share2, Loader2, ChevronDown, Palette, Filter } from "lucide-react";
 
 import { configApi, downloadApi, galleryApi } from "@/lib/api-client";
+import { FEATURE_DISCOVERY_VISIBLE_CASES, INTERACTIVE_I2I_CASES } from "@/constants/useCases";
+import { buildStylePath, buildUseCasePath } from "@/lib/gallery-taxonomy";
+import type { PopularCollection } from "@/lib/gallery-data";
 
 interface GalleryItem {
   id: string;
@@ -50,6 +54,9 @@ interface GalleryTranslations {
   // creator: string;
   download: string;
   share: string;
+  browseByStyle: string;
+  browseByUseCase: string;
+  popularCollections: string;
 }
 
 const styleEmojis: Record<string, string> = {
@@ -77,9 +84,11 @@ function formatTimeAgo(timestamp: number, locale: string): string {
 export function GalleryClient({
   translations,
   locale,
+  popularCollections,
 }: {
   translations: GalleryTranslations;
   locale: string;
+  popularCollections: PopularCollection[];
 }) {
   const router = useRouter();
   const { addToast } = useToast();
@@ -97,6 +106,19 @@ export function GalleryClient({
   const [offset, setOffset] = useState(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  const topUseCaseLinks = Array.from(
+    new Map(
+      [...INTERACTIVE_I2I_CASES, ...FEATURE_DISCOVERY_VISIBLE_CASES]
+        .map((item) => {
+          const useCaseId = item.params?.useCase;
+          if (!useCaseId) return null;
+          const label = "tabLabel" in item && item.tabLabel ? item.tabLabel : useCaseId;
+          return [useCaseId, label] as const;
+        })
+        .filter(Boolean) as Array<readonly [string, string]>
+    )
+  ).slice(0, 10);
 
   const LIMIT = 16;
 
@@ -379,6 +401,59 @@ export function GalleryClient({
       </div>
 
       <div className="container mx-auto px-4 py-8">
+        <div className="mb-8 space-y-6">
+          {popularCollections.length > 0 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">{translations.popularCollections}</h2>
+              <div className="flex flex-wrap gap-3">
+                {popularCollections.map((collection) => (
+                  <Link
+                    key={`popular-collection-${collection.id}`}
+                    href={collection.href}
+                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:border-amber-300 hover:text-amber-600"
+                  >
+                    {collection.styleLabel} + {collection.useCaseLabel}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">{translations.browseByStyle}</h2>
+            <div className="flex flex-wrap gap-3">
+              {styles
+                .filter((style) => style.id !== "none")
+                .slice(0, 12)
+                .map((style) => (
+                  <Link
+                    key={`style-entry-${style.id}`}
+                    href={buildStylePath(routing.defaultLocale, locale, style.id)}
+                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:border-rose-300 hover:text-rose-500"
+                  >
+                    <span className="mr-1.5">{style.icon}</span>
+                    {style.label}
+                  </Link>
+                ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">{translations.browseByUseCase}</h2>
+            <div className="flex flex-wrap gap-3">
+              {topUseCaseLinks.map(([useCaseId, label]) => (
+                <Link
+                  key={`use-case-entry-${useCaseId}`}
+                  href={buildUseCasePath(routing.defaultLocale, locale, useCaseId)}
+                  className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:border-violet-300 hover:text-violet-600"
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />

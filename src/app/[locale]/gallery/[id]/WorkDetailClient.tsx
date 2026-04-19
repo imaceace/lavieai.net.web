@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Link } from "@/routing";
+import { Link, routing } from "@/routing";
 import { useToast } from "@/hooks/useToast";
 import { useUserStore } from "@/stores/userStore";
 import { ArrowLeft, Copy, Sparkles, Download, Share2, Loader2, ChevronDown } from "lucide-react";
-import { downloadApi, galleryApi } from "@/lib/api-client";
+import { downloadApi } from "@/lib/api-client";
+import { buildStylePath, buildUseCasePath } from "@/lib/gallery-taxonomy";
 
 interface GalleryItem {
   id: string;
@@ -45,6 +46,15 @@ interface WorkDetailTranslations {
   download: string;
   share: string;
   loadingWork: string;
+  promptBreakdown: string;
+  subject: string;
+  styleDirection: string;
+  bestFor: string;
+  howToCreateSimilar: string;
+  howToCreateSimilarDesc: string;
+  relatedStyleWorks: string;
+  relatedUseCaseWorks: string;
+  latestWorks: string;
 }
 
 const useCases: UseCase[] = [
@@ -85,70 +95,40 @@ export function WorkDetailClient({
   translations,
   locale,
   workId,
+  initialWork,
+  initialRelatedWorks,
+  initialUseCaseWorks,
+  initialLatestWorks,
 }: {
   translations: WorkDetailTranslations;
   locale: string;
   workId: string;
+  initialWork: GalleryItem | null;
+  initialRelatedWorks: GalleryItem[];
+  initialUseCaseWorks: GalleryItem[];
+  initialLatestWorks: GalleryItem[];
 }) {
   const router = useRouter();
   const { addToast } = useToast();
   const { user, openLoginModal } = useUserStore();
   const isPremium = user && user.subscription_type !== "free";
 
-  const [item, setItem] = useState<GalleryItem | null>(null);
-  const [relatedWorks, setRelatedWorks] = useState<GalleryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingRelated, setIsLoadingRelated] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [item, setItem] = useState<GalleryItem | null>(initialWork);
+  const [relatedWorks, setRelatedWorks] = useState<GalleryItem[]>(initialRelatedWorks);
+  const [useCaseWorks, setUseCaseWorks] = useState<GalleryItem[]>(initialUseCaseWorks);
+  const [latestWorks, setLatestWorks] = useState<GalleryItem[]>(initialLatestWorks);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(initialWork ? null : "Work not found");
   const [previewBgMode, setPreviewBgMode] = useState<"white" | "checker" | "dark">("checker");
 
   useEffect(() => {
-    const fetchWork = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await galleryApi.getWork(workId);
-        if (data) {
-          setItem(data);
-        } else {
-          setError("Work not found");
-        }
-      } catch (err) {
-        console.error("Failed to fetch work:", err);
-        setError("Failed to load work");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (workId) {
-      fetchWork();
-    }
-  }, [workId]);
-
-  useEffect(() => {
-    if (!item?.style) return;
-    
-    const fetchRelated = async () => {
-      setIsLoadingRelated(true);
-      try {
-        const data = await galleryApi.getImages({
-          style: item.style!,
-          exclude: item.id,
-          limit: 8
-        });
-        if (data && data.images) {
-          setRelatedWorks(data.images);
-        }
-      } catch (err) {
-        console.error("Failed to fetch related works:", err);
-      } finally {
-        setIsLoadingRelated(false);
-      }
-    };
-    
-    fetchRelated();
-  }, [item?.style, item?.id]);
+    setItem(initialWork);
+    setRelatedWorks(initialRelatedWorks);
+    setUseCaseWorks(initialUseCaseWorks);
+    setLatestWorks(initialLatestWorks);
+    setError(initialWork ? null : "Work not found");
+    setIsLoading(false);
+  }, [workId, initialWork, initialRelatedWorks, initialUseCaseWorks, initialLatestWorks]);
 
   const handleCopyPrompt = () => {
     if (item?.prompt) {
@@ -252,6 +232,48 @@ export function WorkDetailClient({
 
   const useCaseInfo = useCases.find((uc) => uc.id === item?.use_case);
   const styleLabel = item?.style ? item.style.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "";
+
+  const renderWorkGrid = (works: GalleryItem[]) => (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {works.map((work) => {
+        const relatedImageUrl = work.result_url || work.imageUrl;
+        const relatedStyleLabel = work.style
+          ? work.style.replace(/-/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+          : "";
+
+        return (
+          <Link
+            key={work.id}
+            href={`/gallery/${work.id}`}
+            className="group block"
+          >
+            <article className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-md transition-shadow">
+              {relatedImageUrl ? (
+                <img
+                  src={relatedImageUrl}
+                  alt={work.prompt}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-rose-100 to-violet-100">
+                  <span className="text-4xl">{styleEmojis[work.style || ""] || "🎨"}</span>
+                </div>
+              )}
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent p-3">
+                <p className="text-white text-xs line-clamp-2 leading-relaxed">{work.prompt}</p>
+                {(relatedStyleLabel || work.use_case) && (
+                  <p className="text-white/80 text-[11px] mt-1 line-clamp-1">
+                    {[relatedStyleLabel, work.use_case].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+              </div>
+            </article>
+          </Link>
+        );
+      })}
+    </div>
+  );
 
   if (isLoading) {
     return (
@@ -371,17 +393,23 @@ export function WorkDetailClient({
               {item.style && (
                 <div className="bg-rose-50 rounded-xl p-3">
                   <label className="text-xs font-medium text-rose-600 mb-1 block">{translations.style}</label>
-                  <span className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
+                  <Link
+                    href={buildStylePath(routing.defaultLocale, locale, item.style)}
+                    className="inline-flex items-center gap-2 text-sm font-medium text-gray-800 hover:text-rose-500"
+                  >
                     {styleEmojis[item.style]} {styleLabel}
-                  </span>
+                  </Link>
                 </div>
               )}
               {item.use_case && useCaseInfo && (
                 <div className="bg-violet-50 rounded-xl p-3">
                   <label className="text-xs font-medium text-violet-600 mb-1 block">{translations.useCase}</label>
-                  <span className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
+                  <Link
+                    href={buildUseCasePath(routing.defaultLocale, locale, item.use_case)}
+                    className="inline-flex items-center gap-2 text-sm font-medium text-gray-800 hover:text-violet-600"
+                  >
                     {useCaseInfo.icon} {useCaseInfo.name}
-                  </span>
+                  </Link>
                 </div>
               )}
               {item.created_at && (
@@ -397,6 +425,33 @@ export function WorkDetailClient({
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <h2 className="text-lg font-semibold mb-4 text-gray-800">{translations.promptBreakdown}</h2>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-xl border border-rose-100 bg-rose-50 p-4">
+                <h3 className="text-sm font-semibold text-rose-700 mb-2">{translations.subject}</h3>
+                <p className="text-sm text-gray-700 leading-relaxed">{item.prompt}</p>
+              </div>
+              {styleLabel && (
+                <div className="rounded-xl border border-violet-100 bg-violet-50 p-4">
+                  <h3 className="text-sm font-semibold text-violet-700 mb-2">{translations.styleDirection}</h3>
+                  <p className="text-sm text-gray-700 leading-relaxed">{styleLabel}</p>
+                </div>
+              )}
+              {useCaseInfo && (
+                <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
+                  <h3 className="text-sm font-semibold text-amber-700 mb-2">{translations.bestFor}</h3>
+                  <p className="text-sm text-gray-700 leading-relaxed">{useCaseInfo.name}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <h2 className="text-lg font-semibold mb-3 text-gray-800">{translations.howToCreateSimilar}</h2>
+            <p className="text-gray-700 leading-relaxed">{translations.howToCreateSimilarDesc}</p>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -461,32 +516,65 @@ export function WorkDetailClient({
         {relatedWorks.length > 0 && (
           <div className="mt-8">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              {item.style?.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} {translations.style} Gallery
+              {translations.relatedStyleWorks}
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {relatedWorks.map((work) => {
-                const imageUrl = work.result_url || work.imageUrl;
+            {renderWorkGrid(relatedWorks)}
+          </div>
+        )}
+
+        {useCaseWorks.length > 0 && (
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              {translations.relatedUseCaseWorks}
+            </h3>
+            {renderWorkGrid(useCaseWorks)}
+          </div>
+        )}
+
+        {latestWorks.length > 0 && (
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              {translations.latestWorks}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {latestWorks.map((work) => {
+                const latestImageUrl = work.result_url || work.imageUrl;
+                const latestStyleLabel = work.style
+                  ? work.style.replace(/-/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+                  : "";
+
                 return (
                   <Link
                     key={work.id}
                     href={`/gallery/${work.id}`}
-                    className="group relative aspect-square bg-gray-100 rounded-xl overflow-hidden cursor-pointer"
+                    className="group block rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow"
                   >
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={work.prompt}
-                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-rose-100 to-violet-100">
-                        <span className="text-4xl">{styleEmojis[work.style || ""] || "🎨"}</span>
+                    <article>
+                      <div className="aspect-[4/3] bg-gray-100 overflow-hidden">
+                        {latestImageUrl ? (
+                          <img
+                            src={latestImageUrl}
+                            alt={work.prompt}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-100 to-violet-100">
+                            <span className="text-4xl">{styleEmojis[work.style || ""] || "🎨"}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2">
-                      <p className="text-white text-xs text-center line-clamp-2">{work.prompt}</p>
-                    </div>
+                      <div className="p-4">
+                        <p className="text-sm font-medium text-gray-800 line-clamp-2 leading-relaxed">
+                          {work.prompt}
+                        </p>
+                        {(latestStyleLabel || work.use_case) && (
+                          <p className="text-xs text-gray-500 mt-2 line-clamp-1">
+                            {[latestStyleLabel, work.use_case].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                    </article>
                   </Link>
                 );
               })}

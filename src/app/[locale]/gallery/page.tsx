@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { GalleryClient } from "./GalleryClient";
 import { routing } from "@/routing";
+import { getPopularCollections } from "@/lib/gallery-data";
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -14,7 +15,10 @@ export default async function GalleryPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const t = await getTranslations("gallery");
+  const [t, popularCollections] = await Promise.all([
+    getTranslations("gallery"),
+    getPopularCollections(locale, 6),
+  ]);
   const tNav = await getTranslations("nav");
 
   return (
@@ -42,8 +46,12 @@ export default async function GalleryPage({
         // creator: t("creator"),
         download: t("download"),
         share: t("share"),
+        browseByStyle: t("browseByStyle"),
+        browseByUseCase: t("browseByUseCase"),
+        popularCollections: t("popularCollections"),
       }}
       locale={locale}
+      popularCollections={popularCollections}
     />
   );
 }

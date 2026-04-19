@@ -1208,10 +1208,11 @@ export const downloadApi = {
 
 // Gallery API
 export const galleryApi = {
-  getImages: async (params?: { style?: string; limit?: number; offset?: number; sort?: string; exclude?: string }): Promise<{ images: Array<{ id: string; result_url: string; prompt: string; style: string | null; use_case: string | null }> }> => {
+  getImages: async (params?: { style?: string; useCase?: string; limit?: number; offset?: number; sort?: string; exclude?: string }): Promise<{ images: Array<{ id: string; result_url: string; prompt: string; style: string | null; use_case: string | null }> }> => {
     try {
       const searchParams = new URLSearchParams();
       if (params?.style) searchParams.set('style', params.style);
+      if (params?.useCase) searchParams.set('use_case', params.useCase);
       if (params?.limit) searchParams.set('limit', String(params.limit));
       if (params?.offset) searchParams.set('offset', String(params.offset));
       if (params?.sort) searchParams.set('sort', params.sort);
